@@ -5,7 +5,6 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
@@ -84,11 +83,7 @@ public class MainFrame extends JFrame {
     }
 
     public static void launch() {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception ignored) {
-            // Fall back to the default look and feel.
-        }
+        UiTheme.install();
         SwingUtilities.invokeLater(() -> {
             warnIfDatabaseUnavailable();
             MainFrame frame = new MainFrame();
