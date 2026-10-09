@@ -213,7 +213,7 @@ public class ImportPanel extends JPanel {
             int choice = JOptionPane.showOptionDialog(this, scroll,
                     "Question Bank Import - Invalid Rows Found",
                     JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE,
-                    null, options, options[0]);
+                    null, options, options[1]);
             if (choice == 0) {
                 int imported = importService.importValidRows(report);
                 showImportResult(imported, report.getValidCount(), report);

@@ -50,7 +50,7 @@ public final class QuestionDeleteConfirm {
         Object[] options = {"Delete " + plan.getDeletable().size() + " Questions", "Cancel"};
         int choice = JOptionPane.showOptionDialog(parent, new JScrollPane(area),
                 "Confirm Deletion", JOptionPane.DEFAULT_OPTION,
-                JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+                JOptionPane.WARNING_MESSAGE, null, options, options[1]);
         return choice == 0;
     }
 
