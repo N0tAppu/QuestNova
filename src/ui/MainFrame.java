@@ -1,30 +1,26 @@
 package ui;
 
-import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
-import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
-import java.awt.CardLayout;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 
 /**
  * Main application window with navigation between panels.
  * Subjects & Modules, Question Bank, Excel Import, Blueprint editor,
  * Generated Papers history.
+ *
+ * The navigation is a tabbed pane: the selected screen is obvious, the
+ * screens keep their own refresh-on-enter behaviour, and re-clicking the
+ * already active tab refreshes that screen like the old button bar did.
  */
 public class MainFrame extends JFrame {
 
-    private static final String CARD_SUBJECTS = "subjects";
-    private static final String CARD_QUESTIONS = "questions";
-    private static final String CARD_IMPORT = "import";
-    private static final String CARD_GENERATE = "generate";
-    private static final String CARD_PAPERS = "papers";
-
-    private final CardLayout cardLayout = new CardLayout();
-    private final JPanel cards = new JPanel(cardLayout);
+    private final JTabbedPane tabs = new JTabbedPane();
     private final SubjectPanel subjectPanel = new SubjectPanel();
     private final QuestionPanel questionPanel = new QuestionPanel();
     private final ImportPanel importPanel = new ImportPanel();
@@ -38,48 +34,47 @@ public class MainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        JPanel nav = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton subjectsButton = new JButton("Subjects & Modules");
-        JButton questionsButton = new JButton("Question Bank");
-        JButton importButton = new JButton("Import Excel Question Bank");
-        JButton generateButton = new JButton("Examination Blueprint");
-        JButton papersButton = new JButton("Generated Papers");
-        subjectsButton.addActionListener(e -> {
-            cardLayout.show(cards, CARD_SUBJECTS);
-            subjectPanel.refreshIfChanged();
+        tabs.addTab("Subjects & Modules", subjectPanel);
+        tabs.addTab("Question Bank", questionPanel);
+        tabs.addTab("Import Excel Question Bank", importPanel);
+        tabs.addTab("Examination Blueprint", generatePaperPanel);
+        tabs.addTab("Generated Papers", generatedPapersPanel);
+        tabs.addChangeListener(e -> refreshScreen(tabs.getSelectedIndex()));
+        tabs.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                int index = tabs.indexAtLocation(e.getX(), e.getY());
+                if (index >= 0 && index == tabs.getSelectedIndex()) {
+                    refreshScreen(index);
+                }
+            }
         });
-        questionsButton.addActionListener(e -> {
-            cardLayout.show(cards, CARD_QUESTIONS);
-            questionPanel.refreshFilters();
-        });
-        importButton.addActionListener(e -> {
-            cardLayout.show(cards, CARD_IMPORT);
-            importPanel.refreshPanel();
-        });
-        generateButton.addActionListener(e -> {
-            cardLayout.show(cards, CARD_GENERATE);
-            generatePaperPanel.refreshPanel();
-        });
-        papersButton.addActionListener(e -> {
-            cardLayout.show(cards, CARD_PAPERS);
-            generatedPapersPanel.refreshPanel();
-        });
-        nav.add(subjectsButton);
-        nav.add(questionsButton);
-        nav.add(importButton);
-        nav.add(generateButton);
-        nav.add(papersButton);
-
-        cards.add(subjectPanel, CARD_SUBJECTS);
-        cards.add(questionPanel, CARD_QUESTIONS);
-        cards.add(importPanel, CARD_IMPORT);
-        cards.add(generatePaperPanel, CARD_GENERATE);
-        cards.add(generatedPapersPanel, CARD_PAPERS);
 
         setLayout(new BorderLayout());
-        add(nav, BorderLayout.NORTH);
-        add(cards, BorderLayout.CENTER);
-        cardLayout.show(cards, CARD_SUBJECTS);
+        add(tabs, BorderLayout.CENTER);
+    }
+
+    /** Refreshes the screen that is becoming visible. */
+    private void refreshScreen(int index) {
+        switch (index) {
+            case 0:
+                subjectPanel.refreshIfChanged();
+                break;
+            case 1:
+                questionPanel.refreshFilters();
+                break;
+            case 2:
+                importPanel.refreshPanel();
+                break;
+            case 3:
+                generatePaperPanel.refreshPanel();
+                break;
+            case 4:
+                generatedPapersPanel.refreshPanel();
+                break;
+            default:
+                break;
+        }
     }
 
     public static void launch() {
@@ -99,7 +94,7 @@ public class MainFrame extends JFrame {
             JOptionPane.showMessageDialog(null,
                     "Question Paper Generator could not connect to MySQL.\n\n"
                     + "Please start MySQL (for example through XAMPP) and then use the\n"
-                    + "navigation buttons to load the data again.\n"
+                    + "navigation to load the data again.\n"
                     + "The application will open, but it cannot show any data until the\n"
                     + "connection works.",
                     "Database Connection", JOptionPane.WARNING_MESSAGE);
