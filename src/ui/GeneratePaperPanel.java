@@ -997,7 +997,7 @@ public class GeneratePaperPanel extends JPanel {
             rebuildAvailableList();
             rebuildSelectedList();
             rebuildAllocTable();
-            rebuildPatternSection();
+            rebuildPatternSection(true);
             rebuildPreview();
             rebuildSummary();
             refreshPolicyPreview();
@@ -1051,7 +1051,13 @@ public class GeneratePaperPanel extends JPanel {
                 allocatedSum, total, total - allocatedSum));
     }
 
-    private void rebuildPatternSection() {
+    /**
+     * Rebuilds the pattern table for the current module. When keepSelection
+     * is true (same module context, e.g. a refresh), the selected row is
+     * restored so Edit/Remove stay enabled; module switches clear it.
+     */
+    private void rebuildPatternSection(boolean keepSelection) {
+        int keepRow = keepSelection ? patternTable.getSelectedRow() : -1;
         patternModel.setRowCount(0);
         if (currentModuleId < 0) {
             patternTotalLabel.setText(
@@ -1064,6 +1070,9 @@ public class GeneratePaperPanel extends JPanel {
             patternModel.addRow(new Object[]{
                     row.getMarks(), row.getQuestionCount(), row.getTotalMarks()
             });
+        }
+        if (keepRow >= 0 && keepRow < patternModel.getRowCount()) {
+            patternTable.setRowSelectionInterval(keepRow, keepRow);
         }
         int patternTotal = blueprintService.patternTotal(rows);
         int allocation = exam.getAllocation(currentModuleId);
@@ -1137,7 +1146,7 @@ public class GeneratePaperPanel extends JPanel {
             return;
         }
         currentModuleId = moduleId;
-        rebuildPatternSection();
+        rebuildPatternSection(false);
         syncSelectionToCurrent();
     }
 
