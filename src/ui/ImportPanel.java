@@ -55,7 +55,7 @@ public class ImportPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        JLabel titleLabel = UiTheme.title("Import Excel Question Bank");
+        JPanel titleLabel = UiTheme.titleStrip("Import Excel Question Bank");
 
         JPanel card = new JPanel(new BorderLayout());
         UiTheme.styleCard(card, "Import Setup");

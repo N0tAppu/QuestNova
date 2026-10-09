@@ -64,7 +64,7 @@ public class SubjectPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        add(UiTheme.title("Subjects & Modules"), BorderLayout.NORTH);
+        add(UiTheme.titleStrip("Subjects & Modules"), BorderLayout.NORTH);
 
         JPanel center = new JPanel(new GridLayout(1, 2, UiTheme.GAP, 0));
 

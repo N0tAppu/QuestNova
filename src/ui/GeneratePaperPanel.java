@@ -29,8 +29,11 @@ import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.JViewport;
 import javax.swing.ListSelectionModel;
+import javax.swing.Scrollable;
 import javax.swing.SpinnerNumberModel;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
@@ -39,6 +42,7 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.Rectangle;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
@@ -171,7 +175,7 @@ public class GeneratePaperPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        add(UiTheme.title("Examination Blueprint Editor"), BorderLayout.NORTH);
+        add(UiTheme.titleStrip("Examination Blueprint Editor"), BorderLayout.NORTH);
         UiTheme.styleTable(allocTable);
         UiTheme.styleTable(patternTable);
         UiTheme.styleTable(previewTable);
@@ -191,7 +195,7 @@ public class GeneratePaperPanel extends JPanel {
         previewTable.getColumnModel().getColumn(2).setPreferredWidth(70);
         previewTable.getColumnModel().getColumn(3).setPreferredWidth(140);
 
-        JPanel body = new JPanel();
+        JPanel body = new ScrollBody();
         body.setLayout(new javax.swing.BoxLayout(body, javax.swing.BoxLayout.Y_AXIS));
         body.add(buildSectionA());
         body.add(buildSectionB());
@@ -229,6 +233,50 @@ public class GeneratePaperPanel extends JPanel {
     // Sections
     // =====================================================================
 
+    /**
+     * Scroll container for the section body: fills the viewport horizontally
+     * whenever the widest section still fits, so a slightly wide section never
+     * forces a stray horizontal scrollbar. When the window is too narrow for
+     * the sections' minimum width, horizontal scrolling appears as before -
+     * every control stays reachable.
+     */
+    private static final class ScrollBody extends JPanel implements Scrollable {
+
+        ScrollBody() {
+        }
+
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect,
+                                              int orientation, int direction) {
+            return orientation == SwingConstants.VERTICAL ? 16 : 10;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect,
+                                               int orientation, int direction) {
+            return orientation == SwingConstants.VERTICAL
+                    ? Math.max(16, visibleRect.height - 16)
+                    : Math.max(10, visibleRect.width - 10);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return getParent() instanceof JViewport
+                    && ((JViewport) getParent()).getWidth()
+                       >= getMinimumSize().width;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
+    }
+
     private JPanel buildSectionA() {
         JPanel p = titledPanel("A. Examination Details");
         p.setLayout(new GridBagLayout());
@@ -255,6 +303,18 @@ public class GeneratePaperPanel extends JPanel {
         p.add(new JLabel("Total Marks:"), c);
         c.gridx = 7;
         p.add(totalMarksSpinner, c);
+        // The weighted fields must be allowed to compress below their
+        // preferred width so the row fits a 1000px window without forcing
+        // a stray horizontal scrollbar (acceptance F1/F6).
+        subjectBox.setMinimumSize(new Dimension(
+                Math.min(90, subjectBox.getPreferredSize().width),
+                subjectBox.getPreferredSize().height));
+        examTypeBox.setMinimumSize(new Dimension(
+                Math.min(90, examTypeBox.getPreferredSize().width),
+                examTypeBox.getPreferredSize().height));
+        examDifficultyBox.setMinimumSize(new Dimension(
+                Math.min(90, examDifficultyBox.getPreferredSize().width),
+                examDifficultyBox.getPreferredSize().height));
         return p;
     }
 

@@ -13,6 +13,10 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
@@ -27,7 +31,28 @@ import java.awt.event.MouseEvent;
  */
 public class MainFrame extends JFrame {
 
-    private final JTabbedPane tabs = new JTabbedPane();
+    private final JTabbedPane tabs = new JTabbedPane() {
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            int sel = getSelectedIndex();
+            if (sel < 0 || sel >= getTabCount() || getUI() == null) {
+                return;
+            }
+            Rectangle r = getBoundsAt(sel);
+            if (r == null || r.width <= 0 || r.height <= 0) {
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                int bar = Math.min(4, r.height);
+                g2.setPaint(UiTheme.brandGradient(r.x, r.x + r.width, 0));
+                g2.fillRect(r.x, r.y + r.height - bar, r.width, bar);
+            } finally {
+                g2.dispose();
+            }
+        }
+    };
     private final SubjectPanel subjectPanel = new SubjectPanel();
     private final QuestionPanel questionPanel = new QuestionPanel();
     private final ImportPanel importPanel = new ImportPanel();

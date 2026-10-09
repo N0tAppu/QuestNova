@@ -68,7 +68,7 @@ public class QuestionPanel extends JPanel {
                 UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
         JPanel north = new JPanel(new BorderLayout());
-        north.add(UiTheme.title("Question Bank"), BorderLayout.NORTH);
+        north.add(UiTheme.titleStrip("Question Bank"), BorderLayout.NORTH);
         north.add(buildFilterBar(), BorderLayout.SOUTH);
         add(north, BorderLayout.NORTH);
 

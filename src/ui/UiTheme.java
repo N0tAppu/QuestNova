@@ -9,8 +9,13 @@ import javax.swing.JPanel;
 import javax.swing.JTable;
 import javax.swing.UIManager;
 import javax.swing.border.TitledBorder;
+import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 
 /**
  * Central design system for the Question Paper Generator.
@@ -30,29 +35,43 @@ public final class UiTheme {
     }
 
     // --- Colour palette -------------------------------------------------
-    public static final Color BG = new Color(0xEDF0F4);
+    // Indigo/violet primary, teal secondary, emerald success, coral/red
+    // destructive, amber warning, violet accent, tinted surfaces. Every
+    // pair below was contrast-checked (4.5:1 text, 3:1 controls) before
+    // being admitted; see artifacts/blueprint_ui_acceptance.md section F4.
+    public static final Color BG = new Color(0xECF0FB);
     public static final Color SURFACE = Color.WHITE;
-    public static final Color STRIPE = new Color(0xF6F8FA);
-    public static final Color HEADER_BG = new Color(0xF2F4F7);
+    public static final Color STRIPE = new Color(0xF6F8FE);
+    public static final Color HEADER_BG = new Color(0xE4E9FA);
 
-    public static final Color TEXT = new Color(0x1C2530);
-    public static final Color MUTED = new Color(0x566270);
+    public static final Color TEXT = new Color(0x16182D);
+    public static final Color MUTED = new Color(0x545C7A);
 
-    public static final Color BORDER = new Color(0xB9C2CC);
-    public static final Color CTRL_BORDER = new Color(0x767F8B);
+    public static final Color BORDER = new Color(0xC3C9DE);
+    public static final Color CTRL_BORDER = new Color(0x6E7591);
 
-    public static final Color ACCENT = new Color(0x1B57B8);
-    public static final Color ACCENT_DARK = new Color(0x14418C);
+    /** Primary brand colour (indigo) - headers, links, primary actions. */
+    public static final Color ACCENT = new Color(0x4F46E5);
+    public static final Color ACCENT_DARK = new Color(0x4338CA);
+    /** Violet accent - pairs with ACCENT in the intentional gradients. */
+    public static final Color VIOLET = new Color(0x7C3AED);
+    /** Teal secondary - secondary actions and informational emphasis. */
+    public static final Color SECONDARY = new Color(0x0F766E);
     public static final Color ON_ACCENT = Color.WHITE;
 
-    public static final Color SUCCESS = new Color(0x0F7B3F);
-    public static final Color DANGER = new Color(0xB3261E);
+    public static final Color SUCCESS = new Color(0x047857);
+    public static final Color DANGER = new Color(0xDC2626);
     public static final Color ON_DANGER = Color.WHITE;
-    public static final Color WARN = new Color(0x8A5A00);
+    public static final Color WARN = new Color(0xB45309);
 
-    public static final Color SEL_BG = new Color(0xCFE0FA);
-    public static final Color SEL_FG = new Color(0x10243F);
-    public static final Color SEL_BG_INACTIVE = new Color(0xE1EBFA);
+    public static final Color SEL_BG = new Color(0xDCE1FD);
+    public static final Color SEL_FG = new Color(0x1E1B4B);
+    public static final Color SEL_BG_INACTIVE = new Color(0xE9ECFD);
+
+    /** Disabled fill for primary actions - muted indigo tint (never looks active). */
+    public static final Color ACCENT_DISABLED_BG = new Color(0xDCE1FD);
+    /** Disabled fill for destructive actions - muted coral tint. */
+    public static final Color DANGER_DISABLED_BG = new Color(0xFCE8E8);
 
     // --- Spacing --------------------------------------------------------
     public static final int GAP = 10;
@@ -109,13 +128,77 @@ public final class UiTheme {
         return label;
     }
 
-    /** A titled section border with the shared title styling. */
+    // --- Intentional gradients -----------------------------------------
+    // Java2D gradients appear in exactly three places (design mandate):
+    // the screen header strip, the active navigation tab indicator, and
+    // the section title bands. Text endpoints were contrast-checked:
+    // white on ACCENT 6.29:1, white on VIOLET 5.70:1 (both >= 4.5:1).
+
+    /** A horizontal brand gradient (indigo -> violet) spanning x1..x2. */
+    public static GradientPaint brandGradient(int x1, int x2, int y) {
+        return new GradientPaint(x1, y, ACCENT, Math.max(x1 + 1, x2), y, VIOLET);
+    }
+
+    /**
+     * The screen header strip: a brand-gradient band carrying the white
+     * bold screen title. Drop-in replacement for {@link #title(String)}
+     * at BorderLayout.NORTH - the title label keeps its text.
+     */
+    public static JPanel titleStrip(String text) {
+        JPanel strip = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setPaint(brandGradient(0, Math.max(1, getWidth()), 0));
+                    g2.fillRect(0, 0, getWidth(), getHeight());
+                } finally {
+                    g2.dispose();
+                }
+            }
+        };
+        strip.setOpaque(true);
+        strip.setBackground(ACCENT);
+        JLabel label = new JLabel(text);
+        label.setFont(label.getFont().deriveFont(Font.BOLD, TITLE_SIZE));
+        label.setForeground(ON_ACCENT);
+        label.setBorder(BorderFactory.createEmptyBorder(9, 16, 9, 16));
+        strip.add(label, BorderLayout.CENTER);
+        return strip;
+    }
+
+    /**
+     * A titled section border whose title sits on the brand-gradient band.
+     * Extends TitledBorder so existing instanceof(TitledBorder)/getTitle()
+     * checks (test harnesses, section scrolling) keep working unchanged.
+     */
+    private static final class GradientBandBorder extends TitledBorder {
+
+        private GradientBandBorder(String title) {
+            super(BorderFactory.createLineBorder(BORDER), title);
+            setTitleColor(ON_ACCENT);
+            setTitleFont(getTitleFont().deriveFont(Font.BOLD, SECTION_SIZE));
+        }
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y,
+                                int width, int height) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                int band = Math.max(1, getBorderInsets(c).top);
+                g2.setPaint(brandGradient(x, x + Math.max(1, width), y));
+                g2.fillRect(x, y, width, band);
+            } finally {
+                g2.dispose();
+            }
+            super.paintBorder(c, g, x, y, width, height);
+        }
+    }
+
+    /** A titled section border with the shared gradient-band title styling. */
     public static TitledBorder sectionBorder(String title) {
-        TitledBorder border = BorderFactory.createTitledBorder(
-                BorderFactory.createLineBorder(BORDER), title);
-        border.setTitleColor(MUTED);
-        border.setTitleFont(border.getTitleFont().deriveFont(Font.BOLD, SECTION_SIZE));
-        return border;
+        return new GradientBandBorder(title);
     }
 
     /** Styles a panel as a white section card with the shared titled border. */
@@ -137,24 +220,37 @@ public final class UiTheme {
         table.setSelectionForeground(SEL_FG);
     }
 
-    /** Styles a button as the primary action of a screen. */
+    /**
+     * Styles a button as the primary action of a screen. When the button is
+     * disabled the fill switches to a muted tint so a disabled action can
+     * never be mistaken for an active one (acceptance F7).
+     */
     public static void primaryButton(JButton button) {
-        button.setBackground(ACCENT);
-        button.setForeground(ON_ACCENT);
-        button.setOpaque(true);
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(ACCENT_DARK),
                 BorderFactory.createEmptyBorder(5, 14, 5, 14)));
+        applyActionColors(button, ACCENT, ON_ACCENT, ACCENT_DISABLED_BG);
     }
 
-    /** Styles a button as a destructive action of a screen. */
+    /** Styles a button as a destructive action of a screen (see F7 above). */
     public static void dangerButton(JButton button) {
-        button.setBackground(DANGER);
-        button.setForeground(ON_DANGER);
-        button.setOpaque(true);
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(DANGER),
                 BorderFactory.createEmptyBorder(5, 14, 5, 14)));
+        applyActionColors(button, DANGER, ON_DANGER, DANGER_DISABLED_BG);
+    }
+
+    /** Applies enabled/disabled fills and keeps them in sync with setEnabled. */
+    private static void applyActionColors(JButton button, Color on, Color onFg,
+                                          Color off) {
+        Runnable apply = () -> {
+            boolean enabled = button.isEnabled();
+            button.setOpaque(true);
+            button.setBackground(enabled ? on : off);
+            button.setForeground(enabled ? onFg : MUTED);
+        };
+        apply.run();
+        button.addPropertyChangeListener("enabled", e -> apply.run());
     }
 
     /** Styles a button as a neutral (secondary) action of a screen. */

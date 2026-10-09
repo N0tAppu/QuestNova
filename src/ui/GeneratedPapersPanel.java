@@ -60,7 +60,7 @@ public class GeneratedPapersPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(
                 UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        add(UiTheme.title("Generated Papers"), BorderLayout.NORTH);
+        add(UiTheme.titleStrip("Generated Papers"), BorderLayout.NORTH);
         UiTheme.styleTable(table);
         table.getAccessibleContext().setAccessibleName("Generated papers");
 
