@@ -16,7 +16,6 @@ import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridLayout;
 import java.sql.SQLException;
 import java.util.List;
@@ -61,19 +60,19 @@ public class SubjectPanel extends JPanel {
     private boolean initializing = true;
 
     public SubjectPanel() {
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
+        setBorder(BorderFactory.createEmptyBorder(
+                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        JLabel title = new JLabel("Subjects & Modules");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        add(title, BorderLayout.NORTH);
+        add(UiTheme.title("Subjects & Modules"), BorderLayout.NORTH);
 
-        JPanel center = new JPanel(new GridLayout(1, 2, 10, 0));
+        JPanel center = new JPanel(new GridLayout(1, 2, UiTheme.GAP, 0));
 
         // --- Subjects side ---
         JPanel subjectPanel = new JPanel(new BorderLayout(5, 5));
-        subjectPanel.setBorder(BorderFactory.createTitledBorder("Subjects"));
+        UiTheme.styleCard(subjectPanel, "Subjects");
         subjectTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        UiTheme.styleTable(subjectTable);
         subjectTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 onSubjectSelected();
@@ -86,8 +85,9 @@ public class SubjectPanel extends JPanel {
 
         // --- Modules side ---
         JPanel modulePanel = new JPanel(new BorderLayout(5, 5));
-        modulePanel.setBorder(BorderFactory.createTitledBorder("Modules"));
+        UiTheme.styleCard(modulePanel, "Modules");
         moduleTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        UiTheme.styleTable(moduleTable);
         moduleTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateModuleButtonStates();
@@ -112,10 +112,15 @@ public class SubjectPanel extends JPanel {
     private JPanel buildButtons(Runnable onAdd, Runnable onEdit, Runnable onDelete,
             JButton editButton, JButton deleteButton, JLabel emptyLabel) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        panel.setOpaque(false);
         JButton addButton = new JButton("Add");
         addButton.addActionListener(e -> onAdd.run());
         editButton.addActionListener(e -> onEdit.run());
         deleteButton.addActionListener(e -> onDelete.run());
+        UiTheme.primaryButton(addButton);
+        UiTheme.neutralButton(editButton);
+        UiTheme.neutralButton(deleteButton);
+        emptyLabel.setForeground(UiTheme.MUTED);
         panel.add(emptyLabel);
         panel.add(addButton);
         panel.add(editButton);

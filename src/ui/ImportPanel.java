@@ -6,6 +6,8 @@ import service.ExcelImportService;
 import service.QuestionService;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
@@ -16,8 +18,8 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -49,14 +51,17 @@ public class ImportPanel extends JPanel {
     private boolean initializing = true;
 
     public ImportPanel() {
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
+        setBorder(BorderFactory.createEmptyBorder(
+                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        JLabel title = new JLabel("Import Excel Question Bank");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        add(title, BorderLayout.NORTH);
+        JLabel titleLabel = UiTheme.title("Import Excel Question Bank");
+
+        JPanel card = new JPanel(new BorderLayout());
+        UiTheme.styleCard(card, "Import Setup");
 
         JPanel form = new JPanel(new GridBagLayout());
+        form.setOpaque(false);
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(8, 8, 8, 8);
         c.anchor = GridBagConstraints.WEST;
@@ -74,6 +79,7 @@ public class ImportPanel extends JPanel {
 
         c.gridx = 1; c.gridy = 2; c.fill = GridBagConstraints.NONE; c.weightx = 0;
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        buttons.setOpaque(false);
         JButton chooseButton = new JButton("Select Excel File (.xlsx)");
         JButton templateButton = new JButton("Download Excel Template");
         chooseButton.addActionListener(e -> onChooseFile());
@@ -81,6 +87,11 @@ public class ImportPanel extends JPanel {
         templateButton.addActionListener(e -> onDownloadTemplate());
         deleteFromFileButton.addActionListener(e -> onDeleteFromFile());
         clearSubjectButton.addActionListener(e -> onClearSubject());
+        UiTheme.primaryButton(importButton);
+        UiTheme.neutralButton(chooseButton);
+        UiTheme.neutralButton(templateButton);
+        UiTheme.neutralButton(deleteFromFileButton);
+        UiTheme.neutralButton(clearSubjectButton);
         buttons.add(chooseButton);
         buttons.add(importButton);
         buttons.add(templateButton);
@@ -95,9 +106,19 @@ public class ImportPanel extends JPanel {
                 + "The whole file is validated first. Nothing is inserted until you confirm.");
         info.setEditable(false);
         info.setOpaque(false);
+        info.setForeground(UiTheme.MUTED);
         form.add(info, c);
 
-        add(form, BorderLayout.NORTH);
+        card.add(form, BorderLayout.CENTER);
+        JPanel top = new JPanel();
+        top.setOpaque(false);
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+        top.add(titleLabel);
+        top.add(Box.createVerticalStrut(UiTheme.GAP));
+        top.add(card);
+        add(top, BorderLayout.NORTH);
 
         try {
             loadSubjects();

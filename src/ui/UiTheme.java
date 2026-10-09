@@ -5,6 +5,7 @@ import com.formdev.flatlaf.FlatLightLaf;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JTable;
 import javax.swing.UIManager;
 import javax.swing.border.TitledBorder;
@@ -115,6 +116,12 @@ public final class UiTheme {
         border.setTitleColor(MUTED);
         border.setTitleFont(border.getTitleFont().deriveFont(Font.BOLD, SECTION_SIZE));
         return border;
+    }
+
+    /** Styles a panel as a white section card with the shared titled border. */
+    public static void styleCard(JPanel card, String title) {
+        card.setBorder(sectionBorder(title));
+        card.setBackground(SURFACE);
     }
 
     /** Applies the shared table presentation (never touches selection mode). */

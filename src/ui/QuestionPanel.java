@@ -19,7 +19,6 @@ import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -60,18 +59,17 @@ public class QuestionPanel extends JPanel {
     private boolean initializing = true;
 
     public QuestionPanel() {
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-        JLabel title = new JLabel("Question Bank");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
+        setBorder(BorderFactory.createEmptyBorder(
+                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
         JPanel north = new JPanel(new BorderLayout());
-        north.add(title, BorderLayout.NORTH);
+        north.add(UiTheme.title("Question Bank"), BorderLayout.NORTH);
         north.add(buildFilterBar(), BorderLayout.SOUTH);
         add(north, BorderLayout.NORTH);
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        UiTheme.styleTable(table);
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateRowActionStates();
@@ -96,9 +94,10 @@ public class QuestionPanel extends JPanel {
 
     private JPanel buildFilterBar() {
         JPanel bar = new JPanel(new BorderLayout(0, 2));
-        bar.setBorder(BorderFactory.createTitledBorder("Search / Filter"));
+        UiTheme.styleCard(bar, "Search / Filter");
 
         JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        filters.setOpaque(false);
         filters.add(new JLabel("Subject:"));
         subjectFilter.addActionListener(e -> onSubjectFilterChanged());
         filters.add(subjectFilter);
@@ -125,8 +124,11 @@ public class QuestionPanel extends JPanel {
         searchButton.addActionListener(e -> search());
         JButton resetButton = new JButton("Reset");
         resetButton.addActionListener(e -> resetFilters());
+        UiTheme.neutralButton(searchButton);
+        UiTheme.neutralButton(resetButton);
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        actions.setOpaque(false);
         actions.add(searchButton);
         actions.add(resetButton);
 
@@ -146,6 +148,13 @@ public class QuestionPanel extends JPanel {
         deleteButton.addActionListener(e -> onDelete());
         viewAnswerButton.addActionListener(e -> onViewAnswer());
         clearAllButton.addActionListener(e -> onClearAll());
+
+        UiTheme.primaryButton(addButton);
+        UiTheme.neutralButton(editButton);
+        UiTheme.neutralButton(deleteButton);
+        UiTheme.neutralButton(viewAnswerButton);
+        UiTheme.neutralButton(clearAllButton);
+        emptyLabel.setForeground(UiTheme.MUTED);
 
         bar.add(emptyLabel);
         bar.add(addButton);
