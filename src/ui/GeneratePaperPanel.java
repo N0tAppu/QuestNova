@@ -36,7 +36,6 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -168,12 +167,14 @@ public class GeneratePaperPanel extends JPanel {
     private boolean initializing = true;
 
     public GeneratePaperPanel() {
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
+        setBorder(BorderFactory.createEmptyBorder(
+                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        JLabel title = new JLabel("Examination Blueprint Editor");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        add(title, BorderLayout.NORTH);
+        add(UiTheme.title("Examination Blueprint Editor"), BorderLayout.NORTH);
+        UiTheme.styleTable(allocTable);
+        UiTheme.styleTable(patternTable);
+        UiTheme.styleTable(previewTable);
 
         JPanel body = new JPanel();
         body.setLayout(new javax.swing.BoxLayout(body, javax.swing.BoxLayout.Y_AXIS));
@@ -247,22 +248,32 @@ public class GeneratePaperPanel extends JPanel {
         p.setLayout(new BorderLayout(6, 6));
 
         JPanel availablePanel = new JPanel(new BorderLayout(4, 4));
-        availablePanel.add(new JLabel("Modules of the selected subject:"), BorderLayout.NORTH);
+        availablePanel.setOpaque(false);
+        JLabel availableCaption = new JLabel("Modules of the selected subject:");
+        availableCaption.setForeground(UiTheme.MUTED);
+        availablePanel.add(availableCaption, BorderLayout.NORTH);
         availableList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         availablePanel.add(new JScrollPane(availableList), BorderLayout.CENTER);
         JPanel availableButtons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        availableButtons.setOpaque(false);
         JButton addButton = new JButton("Add to Syllabus");
+        UiTheme.neutralButton(addButton);
         addButton.addActionListener(e -> onAddToSyllabus());
         availableButtons.add(addButton);
         availablePanel.add(availableButtons, BorderLayout.SOUTH);
         availablePanel.setPreferredSize(new Dimension(420, 170));
 
         JPanel selectedPanel = new JPanel(new BorderLayout(4, 4));
-        selectedPanel.add(new JLabel("Selected for this examination:"), BorderLayout.NORTH);
+        selectedPanel.setOpaque(false);
+        JLabel selectedCaption = new JLabel("Selected for this examination:");
+        selectedCaption.setForeground(UiTheme.MUTED);
+        selectedPanel.add(selectedCaption, BorderLayout.NORTH);
         selectedList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         selectedPanel.add(new JScrollPane(selectedList), BorderLayout.CENTER);
         JPanel selectedButtons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        selectedButtons.setOpaque(false);
         JButton removeButton = new JButton("Remove");
+        UiTheme.neutralButton(removeButton);
         removeButton.addActionListener(e -> onRemoveFromSyllabus());
         selectedButtons.add(removeButton);
         selectedPanel.add(selectedButtons, BorderLayout.SOUTH);
@@ -292,7 +303,12 @@ public class GeneratePaperPanel extends JPanel {
         p.add(new JScrollPane(patternTable), BorderLayout.CENTER);
 
         JPanel south = new JPanel(new BorderLayout());
+        south.setOpaque(false);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        buttons.setOpaque(false);
+        UiTheme.neutralButton(addRowButton);
+        UiTheme.neutralButton(editRowButton);
+        UiTheme.neutralButton(removeRowButton);
         buttons.add(addRowButton);
         buttons.add(editRowButton);
         buttons.add(removeRowButton);
@@ -312,10 +328,13 @@ public class GeneratePaperPanel extends JPanel {
                         + " applied to every allocated module");
         p.setLayout(new BorderLayout(4, 4));
         JPanel form = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        form.setOpaque(false);
         form.add(new JLabel("Allocation marks:"));
         form.add(policyAllocationField);
         form.add(new JLabel("Composes as:"));
         form.add(policyCompositionField);
+        UiTheme.neutralButton(setRuleButton);
+        UiTheme.neutralButton(applyPolicyButton);
         form.add(setRuleButton);
         form.add(applyPolicyButton);
         setRuleButton.addActionListener(e -> onSetPatternRule());
@@ -340,12 +359,18 @@ public class GeneratePaperPanel extends JPanel {
 
     private JPanel buildActions() {
         JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        bar.setOpaque(false);
+        bar.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
         JButton validateButton = new JButton("Validate Blueprint");
         JButton availabilityButton = new JButton("Validate Availability");
         validateButton.addActionListener(e -> onValidate());
         availabilityButton.addActionListener(e -> onValidateAvailability());
         generateButton.addActionListener(e -> onGeneratePaper());
         clearButton.addActionListener(e -> onClear());
+        UiTheme.neutralButton(validateButton);
+        UiTheme.neutralButton(availabilityButton);
+        UiTheme.primaryButton(generateButton);
+        UiTheme.neutralButton(clearButton);
         bar.add(validateButton);
         bar.add(availabilityButton);
         bar.add(generateButton);
@@ -355,7 +380,7 @@ public class GeneratePaperPanel extends JPanel {
 
     private JPanel titledPanel(String title) {
         JPanel p = new JPanel();
-        p.setBorder(BorderFactory.createTitledBorder(title));
+        UiTheme.styleCard(p, title);
         p.setAlignmentX(LEFT_ALIGNMENT);
         return p;
     }
@@ -1075,13 +1100,15 @@ public class GeneratePaperPanel extends JPanel {
         if (errors.isEmpty()) {
             List<BlueprintSlot> slots = blueprintService.generateSlots(exam);
             summaryLabel.setText(String.format(
-                    "<html><b style=\"color:green\">VALID</b> &nbsp; Questions: %d &nbsp;"
+                    "<html><b style=\"color:#%06X\">VALID</b> &nbsp; Questions: %d &nbsp;"
                             + " Total marks: %d</html>",
+                    UiTheme.SUCCESS.getRGB() & 0xFFFFFF,
                     slots.size(), blueprintService.totalMarks(slots)));
             return;
         }
-        StringBuilder sb = new StringBuilder(
-                "<html><b style=\"color:#b00000\">NOT VALID</b><br>");
+        StringBuilder sb = new StringBuilder(String.format(
+                "<html><b style=\"color:#%06X\">NOT VALID</b><br>",
+                UiTheme.DANGER.getRGB() & 0xFFFFFF));
         for (String error : errors) {
             sb.append("&bull; ").append(error).append("<br>");
         }
