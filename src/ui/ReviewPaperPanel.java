@@ -20,7 +20,6 @@ import javax.swing.JTextArea;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -82,11 +81,14 @@ public class ReviewPaperPanel extends JPanel {
     private final JButton closeButton = new JButton("Close");
 
     public ReviewPaperPanel() {
-        setLayout(new BorderLayout(8, 8));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
+        setBorder(BorderFactory.createEmptyBorder(
+                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
         JPanel header = new JPanel(new BorderLayout());
-        titleLabel.setFont(titleLabel.getFont().deriveFont(Font.BOLD, 18f));
+        titleLabel.setFont(titleLabel.getFont().deriveFont(
+                Font.BOLD, UiTheme.TITLE_SIZE));
+        titleLabel.setForeground(UiTheme.TEXT);
         statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
         header.add(titleLabel, BorderLayout.WEST);
         header.add(statusLabel, BorderLayout.EAST);
@@ -97,6 +99,7 @@ public class ReviewPaperPanel extends JPanel {
         add(headerBlock, BorderLayout.NORTH);
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        UiTheme.styleTable(table);
         table.getColumnModel().getColumn(0).setPreferredWidth(40);
         table.getColumnModel().getColumn(1).setPreferredWidth(120);
         table.getColumnModel().getColumn(2).setPreferredWidth(50);
@@ -111,6 +114,7 @@ public class ReviewPaperPanel extends JPanel {
         questionArea.setWrapStyleWord(true);
         answerArea.setLineWrap(true);
         answerArea.setWrapStyleWord(true);
+        detailInfoLabel.setForeground(UiTheme.MUTED);
 
         JPanel detail = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
@@ -152,6 +156,14 @@ public class ReviewPaperPanel extends JPanel {
         exportPaperButton.addActionListener(e -> onExport(false));
         exportKeyButton.addActionListener(e -> onExport(true));
         closeButton.addActionListener(e -> closeAction.run());
+        UiTheme.neutralButton(editButton);
+        UiTheme.neutralButton(replaceButton);
+        UiTheme.neutralButton(regenerateButton);
+        UiTheme.neutralButton(updateBankButton);
+        UiTheme.primaryButton(finalizeButton);
+        UiTheme.neutralButton(exportPaperButton);
+        UiTheme.neutralButton(exportKeyButton);
+        UiTheme.neutralButton(closeButton);
 
         JPanel editRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
         editRow.add(editButton);
@@ -642,18 +654,18 @@ public class ReviewPaperPanel extends JPanel {
         if (review.isFinalized()) {
             statusLabel.setText("FINALIZED - Paper ID " + review.getPaperId()
                     + " (read-only)");
-            statusLabel.setForeground(new Color(70, 70, 70));
+            statusLabel.setForeground(UiTheme.MUTED);
             statusLabel.setToolTipText("This paper is saved and can no longer change.");
             return;
         }
         List<String> errors = reviewService.validate(review);
         if (errors.isEmpty()) {
             statusLabel.setText("VALID - ready to finalize");
-            statusLabel.setForeground(new Color(0, 120, 0));
+            statusLabel.setForeground(UiTheme.SUCCESS);
             statusLabel.setToolTipText(null);
         } else {
             statusLabel.setText("INVALID - " + errors.size() + " problem(s)");
-            statusLabel.setForeground(new Color(178, 34, 34));
+            statusLabel.setForeground(UiTheme.DANGER);
             StringBuilder tip = new StringBuilder();
             for (String error : errors) {
                 tip.append("- ").append(error).append('\n');

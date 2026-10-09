@@ -15,7 +15,6 @@ import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.Font;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -57,12 +56,12 @@ public class GeneratedPapersPanel extends JPanel {
     private boolean initializing = true;
 
     public GeneratedPapersPanel() {
-        setLayout(new BorderLayout(10, 10));
-        setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
+        setBorder(BorderFactory.createEmptyBorder(
+                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
 
-        JLabel title = new JLabel("Generated Papers");
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
-        add(title, BorderLayout.NORTH);
+        add(UiTheme.title("Generated Papers"), BorderLayout.NORTH);
+        UiTheme.styleTable(table);
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.getColumnModel().getColumn(0).setPreferredWidth(70);
@@ -78,12 +77,16 @@ public class GeneratedPapersPanel extends JPanel {
         add(scroll, BorderLayout.CENTER);
 
         JPanel south = new JPanel(new BorderLayout());
+        emptyLabel.setForeground(UiTheme.MUTED);
         emptyLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
         south.add(emptyLabel, BorderLayout.WEST);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         openButton.addActionListener(e -> onOpen());
         deleteButton.addActionListener(e -> onDelete());
         refreshButton.addActionListener(e -> refreshPanel());
+        UiTheme.primaryButton(openButton);
+        UiTheme.dangerButton(deleteButton);
+        UiTheme.neutralButton(refreshButton);
         buttons.add(openButton);
         buttons.add(deleteButton);
         buttons.add(refreshButton);
