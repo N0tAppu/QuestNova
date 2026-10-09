@@ -6,9 +6,11 @@ import model.ReviewQuestion;
 import service.PDFExportService;
 import service.PaperReviewService;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -17,6 +19,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
@@ -26,6 +29,8 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
@@ -100,6 +105,7 @@ public class ReviewPaperPanel extends JPanel {
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         UiTheme.styleTable(table);
+        table.getAccessibleContext().setAccessibleName("Questions in this paper");
         table.getColumnModel().getColumn(0).setPreferredWidth(40);
         table.getColumnModel().getColumn(1).setPreferredWidth(120);
         table.getColumnModel().getColumn(2).setPreferredWidth(50);
@@ -156,6 +162,14 @@ public class ReviewPaperPanel extends JPanel {
         exportPaperButton.addActionListener(e -> onExport(false));
         exportKeyButton.addActionListener(e -> onExport(true));
         closeButton.addActionListener(e -> closeAction.run());
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "closeReview");
+        getActionMap().put("closeReview", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                closeAction.run();
+            }
+        });
         UiTheme.neutralButton(editButton);
         UiTheme.neutralButton(replaceButton);
         UiTheme.neutralButton(regenerateButton);

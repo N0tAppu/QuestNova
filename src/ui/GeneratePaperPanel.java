@@ -175,6 +175,21 @@ public class GeneratePaperPanel extends JPanel {
         UiTheme.styleTable(allocTable);
         UiTheme.styleTable(patternTable);
         UiTheme.styleTable(previewTable);
+        allocTable.getAccessibleContext().setAccessibleName("Module mark allocation");
+        patternTable.getAccessibleContext().setAccessibleName("Question pattern");
+        previewTable.getAccessibleContext().setAccessibleName("Derived blueprint preview");
+        allocTable.getColumnModel().getColumn(0).setPreferredWidth(240);
+        allocTable.getColumnModel().getColumn(1).setPreferredWidth(95);
+        allocTable.getColumnModel().getColumn(2).setPreferredWidth(85);
+        allocTable.getColumnModel().getColumn(3).setPreferredWidth(95);
+        allocTable.getColumnModel().getColumn(4).setPreferredWidth(85);
+        patternTable.getColumnModel().getColumn(0).setPreferredWidth(70);
+        patternTable.getColumnModel().getColumn(1).setPreferredWidth(85);
+        patternTable.getColumnModel().getColumn(2).setPreferredWidth(95);
+        previewTable.getColumnModel().getColumn(0).setPreferredWidth(50);
+        previewTable.getColumnModel().getColumn(1).setPreferredWidth(240);
+        previewTable.getColumnModel().getColumn(2).setPreferredWidth(70);
+        previewTable.getColumnModel().getColumn(3).setPreferredWidth(140);
 
         JPanel body = new JPanel();
         body.setLayout(new javax.swing.BoxLayout(body, javax.swing.BoxLayout.Y_AXIS));

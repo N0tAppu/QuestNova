@@ -5,9 +5,11 @@ import model.Question;
 import model.Subject;
 import service.QuestionService;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -15,6 +17,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
@@ -22,6 +25,7 @@ import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -70,6 +74,14 @@ public class QuestionPanel extends JPanel {
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         UiTheme.styleTable(table);
+        table.getAccessibleContext().setAccessibleName("Questions");
+        table.getColumnModel().getColumn(0).setPreferredWidth(50);
+        table.getColumnModel().getColumn(1).setPreferredWidth(300);
+        table.getColumnModel().getColumn(2).setPreferredWidth(260);
+        table.getColumnModel().getColumn(3).setPreferredWidth(120);
+        table.getColumnModel().getColumn(4).setPreferredWidth(120);
+        table.getColumnModel().getColumn(5).setPreferredWidth(55);
+        table.getColumnModel().getColumn(6).setPreferredWidth(75);
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateRowActionStates();
@@ -81,6 +93,18 @@ public class QuestionPanel extends JPanel {
         updateRowActionStates();
         updateClearAllState();
         emptyLabel.setVisible(tableModel.getRowCount() == 0);
+
+        searchText.addActionListener(e -> search());
+        marksFilter.addActionListener(e -> search());
+        getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
+                KeyStroke.getKeyStroke("control F"), "focusSearch");
+        getActionMap().put("focusSearch", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                searchText.requestFocusInWindow();
+                searchText.selectAll();
+            }
+        });
 
         try {
             loadSubjectsIntoFilter();
@@ -312,6 +336,11 @@ public class QuestionPanel extends JPanel {
     // --- Search / filter ---
 
     private void search() {
+        Integer keepQuestionId = null;
+        int selectedRow = table.getSelectedRow();
+        if (selectedRow >= 0) {
+            keepQuestionId = (Integer) tableModel.getValueAt(selectedRow, 0);
+        }
         Integer subjectId = null;
         Integer moduleId = null;
         Integer marks = null;
@@ -356,7 +385,16 @@ public class QuestionPanel extends JPanel {
         } catch (SQLException ex) {
             showError("Could not load questions. Please check that MySQL is running.");
         }
-        // A reloaded table loses its selection: refresh the row-action states.
+        if (keepQuestionId != null) {
+            for (int i = 0; i < tableModel.getRowCount(); i++) {
+                if (keepQuestionId.equals(tableModel.getValueAt(i, 0))) {
+                    table.setRowSelectionInterval(i, i);
+                    table.scrollRectToVisible(table.getCellRect(i, 0, true));
+                    break;
+                }
+            }
+        }
+        // Refresh the row-action states for the surviving selection.
         updateRowActionStates();
         emptyLabel.setVisible(tableModel.getRowCount() == 0);
     }

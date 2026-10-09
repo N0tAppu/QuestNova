@@ -62,6 +62,7 @@ public class GeneratedPapersPanel extends JPanel {
 
         add(UiTheme.title("Generated Papers"), BorderLayout.NORTH);
         UiTheme.styleTable(table);
+        table.getAccessibleContext().setAccessibleName("Generated papers");
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.getColumnModel().getColumn(0).setPreferredWidth(70);

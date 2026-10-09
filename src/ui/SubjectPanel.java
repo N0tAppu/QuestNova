@@ -73,6 +73,7 @@ public class SubjectPanel extends JPanel {
         UiTheme.styleCard(subjectPanel, "Subjects");
         subjectTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         UiTheme.styleTable(subjectTable);
+        subjectTable.getAccessibleContext().setAccessibleName("Subjects");
         subjectTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 onSubjectSelected();
@@ -88,6 +89,7 @@ public class SubjectPanel extends JPanel {
         UiTheme.styleCard(modulePanel, "Modules");
         moduleTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         UiTheme.styleTable(moduleTable);
+        moduleTable.getAccessibleContext().setAccessibleName("Modules");
         moduleTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateModuleButtonStates();

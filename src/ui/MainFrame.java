@@ -1,10 +1,17 @@
 package ui;
 
+import javax.swing.JComboBox;
 import javax.swing.JFrame;
+import javax.swing.JList;
 import javax.swing.JOptionPane;
+import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
 import javax.swing.SwingUtilities;
+import javax.swing.text.JTextComponent;
 import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -39,7 +46,10 @@ public class MainFrame extends JFrame {
         tabs.addTab("Import Excel Question Bank", importPanel);
         tabs.addTab("Examination Blueprint", generatePaperPanel);
         tabs.addTab("Generated Papers", generatedPapersPanel);
-        tabs.addChangeListener(e -> refreshScreen(tabs.getSelectedIndex()));
+        tabs.addChangeListener(e -> {
+            refreshScreen(tabs.getSelectedIndex());
+            focusCurrentScreen();
+        });
         tabs.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -52,6 +62,41 @@ public class MainFrame extends JFrame {
 
         setLayout(new BorderLayout());
         add(tabs, BorderLayout.CENTER);
+    }
+
+    /** Moves the keyboard focus into the screen that just became visible. */
+    private void focusCurrentScreen() {
+        Component selected = tabs.getSelectedComponent();
+        SwingUtilities.invokeLater(() -> {
+            if (!(selected instanceof Container)) {
+                return;
+            }
+            Component target = firstInput((Container) selected);
+            if (target != null) {
+                target.requestFocusInWindow();
+            }
+        });
+    }
+
+    /** First data-entry control of the screen in traversal order. */
+    private static Component firstInput(Container container) {
+        for (Component child : container.getComponents()) {
+            if (!child.isVisible()) {
+                continue;
+            }
+            if (child instanceof JTextComponent || child instanceof JComboBox
+                    || child instanceof JSpinner || child instanceof JList
+                    || child instanceof JTable) {
+                return child;
+            }
+            if (child instanceof Container) {
+                Component nested = firstInput((Container) child);
+                if (nested != null) {
+                    return nested;
+                }
+            }
+        }
+        return null;
     }
 
     /** Refreshes the screen that is becoming visible. */
