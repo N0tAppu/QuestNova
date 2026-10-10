@@ -5,93 +5,74 @@ import javax.swing.JFrame;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JSpinner;
-import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.text.JTextComponent;
-import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
-import java.awt.Dimension;
-import java.awt.GradientPaint;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 
 /**
- * Main application window with navigation between panels.
- * Subjects & Modules, Question Bank, Excel Import, Blueprint editor,
- * Generated Papers history.
+ * Main application window: a light sidebar shell ({@link AppShell}) hosting
+ * the five screens in reference order -
+ * Subjects &amp; modules, Import questions, Question bank, Blueprint,
+ * Generated papers - grouped under "Content" and "Papers".
  *
- * The navigation is a tabbed pane: the selected screen is obvious, the
- * screens keep their own refresh-on-enter behaviour, and re-clicking the
- * already active tab refreshes that screen like the old button bar did.
+ * The shell reports every screen change (including a re-click of the
+ * already active entry) so each screen keeps its refresh-on-enter
+ * behaviour, and moves the keyboard focus into the screen that just
+ * became visible.
  */
 public class MainFrame extends JFrame {
 
-    private final JTabbedPane tabs = new JTabbedPane() {
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            int sel = getSelectedIndex();
-            if (sel < 0 || sel >= getTabCount() || getUI() == null) {
-                return;
-            }
-            Rectangle r = getBoundsAt(sel);
-            if (r == null || r.width <= 0 || r.height <= 0) {
-                return;
-            }
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                int bar = Math.min(4, r.height);
-                g2.setPaint(UiTheme.brandGradient(r.x, r.x + r.width, 0));
-                g2.fillRect(r.x, r.y + r.height - bar, r.width, bar);
-            } finally {
-                g2.dispose();
-            }
-        }
-    };
+    // Screen order here MUST match the AppShell registration order below.
     private final SubjectPanel subjectPanel = new SubjectPanel();
-    private final QuestionPanel questionPanel = new QuestionPanel();
     private final ImportPanel importPanel = new ImportPanel();
+    private final QuestionPanel questionPanel = new QuestionPanel();
     private final GeneratePaperPanel generatePaperPanel = new GeneratePaperPanel();
     private final GeneratedPapersPanel generatedPapersPanel = new GeneratedPapersPanel();
 
+    private final Component[] screens = {
+            subjectPanel, importPanel, questionPanel,
+            generatePaperPanel, generatedPapersPanel
+    };
+
+    private final AppShell shell = new AppShell();
+
     public MainFrame() {
         setTitle("Question Paper Generator");
-        setSize(1000, 650);
-        setMinimumSize(new Dimension(1000, 650));
+        setSize(1000, 640);
+        setMinimumSize(new java.awt.Dimension(1000, 640));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        tabs.addTab("Subjects & Modules", subjectPanel);
-        tabs.addTab("Question Bank", questionPanel);
-        tabs.addTab("Import Excel Question Bank", importPanel);
-        tabs.addTab("Examination Blueprint", generatePaperPanel);
-        tabs.addTab("Generated Papers", generatedPapersPanel);
-        tabs.addChangeListener(e -> {
-            refreshScreen(tabs.getSelectedIndex());
-            focusCurrentScreen();
-        });
-        tabs.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent e) {
-                int index = tabs.indexAtLocation(e.getX(), e.getY());
-                if (index >= 0 && index == tabs.getSelectedIndex()) {
-                    refreshScreen(index);
-                }
-            }
-        });
+        shell.group("Content");
+        shell.screen("Subjects & modules", subjectPanel);
+        shell.screen("Import questions", importPanel);
+        shell.screen("Question bank", questionPanel);
+        shell.group("Papers");
+        shell.screen("Blueprint", generatePaperPanel);
+        shell.screen("Generated papers", generatedPapersPanel);
+        shell.setHost(this::onScreenShown);
 
-        setLayout(new BorderLayout());
-        add(tabs, BorderLayout.CENTER);
+        setContentPane(shell);
+        shell.bindShortcuts();
     }
 
-    /** Moves the keyboard focus into the screen that just became visible. */
-    private void focusCurrentScreen() {
-        Component selected = tabs.getSelectedComponent();
+    /** Refreshes the screen that just became visible, then focuses it. */
+    private void onScreenShown(int screenIndex) {
+        refreshScreen(screenIndex);
+        focusScreen(screenIndex);
+    }
+
+    /**
+     * Moves the keyboard focus into the screen that just became visible.
+     * Focus order then follows the visual order inside that screen.
+     */
+    private void focusScreen(int screenIndex) {
+        if (screenIndex < 0 || screenIndex >= screens.length) {
+            return;
+        }
+        Component selected = screens[screenIndex];
         SwingUtilities.invokeLater(() -> {
             if (!(selected instanceof Container)) {
                 return;
@@ -125,22 +106,25 @@ public class MainFrame extends JFrame {
     }
 
     /** Refreshes the screen that is becoming visible. */
-    private void refreshScreen(int index) {
-        switch (index) {
+    private void refreshScreen(int screenIndex) {
+        switch (screenIndex) {
             case 0:
                 subjectPanel.refreshIfChanged();
+                shell.badge("Subjects & modules", subjectPanel.getSubjectRowCount());
                 break;
             case 1:
-                questionPanel.refreshFilters();
+                importPanel.refreshPanel();
                 break;
             case 2:
-                importPanel.refreshPanel();
+                questionPanel.refreshFilters();
+                shell.badge("Question bank", questionPanel.getQuestionRowCount());
                 break;
             case 3:
                 generatePaperPanel.refreshPanel();
                 break;
             case 4:
                 generatedPapersPanel.refreshPanel();
+                shell.badge("Generated papers", generatedPapersPanel.getRowCount());
                 break;
             default:
                 break;
@@ -148,7 +132,7 @@ public class MainFrame extends JFrame {
     }
 
     public static void launch() {
-        UiTheme.install();
+        Theme.install();
         SwingUtilities.invokeLater(() -> {
             warnIfDatabaseUnavailable();
             MainFrame frame = new MainFrame();

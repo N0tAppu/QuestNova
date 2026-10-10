@@ -1,27 +1,32 @@
 package ui;
 
+import com.formdev.flatlaf.ui.FlatLineBorder;
+
 import model.Question;
 import model.Subject;
 import service.ExcelImportService;
 import service.QuestionService;
 
-import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.SwingConstants;
+import javax.swing.border.EmptyBorder;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.BorderLayout;
 import java.awt.Component;
-import java.awt.FlowLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
+import java.awt.Dimension;
 import java.awt.Insets;
 import java.io.File;
 import java.io.IOException;
@@ -30,101 +35,317 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Import Excel Question Bank screen.
+ * Import Excel Question Bank screen, laid out as the three numbered steps of
+ * the reference design: choose the subject, choose the Excel file, review and
+ * import. A display-only check previews the validation result; the destructive
+ * actions sit collapsed below the card.
+ *
  * Flow: select subject -> select .xlsx -> validate entire file ->
  * show summary -> Import All / Import Valid Rows Only / Cancel.
  * All SQL and business logic live in the service layer.
  */
 public class ImportPanel extends JPanel {
 
+    /** Card width cap from the reference ("max-width:760px"). */
+    private static final int CARD_MAX_WIDTH = 760;
+    /** Subject combo width from the reference ("width:280px"). */
+    private static final int SUBJECT_FIELD_WIDTH = 280;
+
     private final ExcelImportService importService = new ExcelImportService();
     private final QuestionService questionService = new QuestionService();
 
     private final JComboBox<SubjectOption> subjectBox = new JComboBox<>();
-    private final JLabel fileLabel = new JLabel("No file selected");
-    private final JButton importButton = new JButton("Import Question Bank");
+    private final JLabel fileLabel = Ui.muted("No file chosen");
+    private final JButton importButton = Ui.primary("Import questions");
     private final JButton deleteFromFileButton =
-            new JButton("Delete Questions from This File");
-    private final JButton clearSubjectButton = new JButton("Clear Entire Subject");
+            Ui.danger("Delete questions from this file");
+    private final JButton clearSubjectButton = Ui.danger("Clear entire subject");
+
+    /** Slot that swaps between the idle text, the summary and a failure text. */
+    private final JPanel checkArea = new JPanel(new BorderLayout());
+    private final JPanel summaryPanel = new JPanel(new BorderLayout());
+    private final JLabel idleLabel =
+            Ui.muted("Choose a subject and a file to run the check.");
+    private final JLabel checkFailureLabel = Ui.muted("");
+    private final JLabel checkSummaryLabel = Ui.bold("");
+
+    /** Destructive actions, hidden until "Remove questions instead" is pressed. */
+    private final JPanel removeActions = new JPanel(new BorderLayout(0, Theme.S));
+
+    private JPanel card;
 
     /** True while the constructor runs: startup errors must not open dialogs. */
     private boolean initializing = true;
 
     public ImportPanel() {
-        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
-        setBorder(BorderFactory.createEmptyBorder(
-                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
+        setLayout(new BorderLayout(0, Theme.L));
+        setOpaque(false);
+        add(Ui.pageHeader("Import questions",
+                "The whole file is checked first. Nothing is saved until you confirm."),
+                BorderLayout.NORTH);
 
-        JPanel titleLabel = UiTheme.titleStrip("Import Excel Question Bank");
+        checkArea.add(idleLabel, BorderLayout.CENTER);
+        summaryPanel.setBackground(Theme.OK_BG);
+        summaryPanel.setBorder(new EmptyBorder(Theme.S, Theme.M, Theme.S, Theme.M));
+        checkSummaryLabel.setForeground(Theme.OK);
+        summaryPanel.add(checkSummaryLabel, BorderLayout.CENTER);
 
-        JPanel card = new JPanel(new BorderLayout());
-        UiTheme.styleCard(card, "Import Setup");
-
-        JPanel form = new JPanel(new GridBagLayout());
-        form.setOpaque(false);
-        GridBagConstraints c = new GridBagConstraints();
-        c.insets = new Insets(8, 8, 8, 8);
-        c.anchor = GridBagConstraints.WEST;
-
-        c.gridx = 0; c.gridy = 0;
-        form.add(new JLabel("Subject:"), c);
-        c.gridx = 1; c.fill = GridBagConstraints.HORIZONTAL; c.weightx = 1.0;
-        subjectBox.addActionListener(e -> updateImportButtonState());
-        form.add(subjectBox, c);
-
-        c.gridx = 0; c.gridy = 1; c.fill = GridBagConstraints.NONE; c.weightx = 0;
-        form.add(new JLabel("Excel File:"), c);
-        c.gridx = 1; c.fill = GridBagConstraints.HORIZONTAL; c.weightx = 1.0;
-        form.add(fileLabel, c);
-
-        c.gridx = 1; c.gridy = 2; c.fill = GridBagConstraints.NONE; c.weightx = 0;
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        buttons.setOpaque(false);
-        JButton chooseButton = new JButton("Select Excel File (.xlsx)");
-        JButton templateButton = new JButton("Download Excel Template");
+        JButton chooseButton = Ui.plain("Choose file (.xlsx)");
+        JButton templateButton = Ui.link("Download template");
         chooseButton.addActionListener(e -> onChooseFile());
-        importButton.addActionListener(e -> onImport());
         templateButton.addActionListener(e -> onDownloadTemplate());
+        importButton.addActionListener(e -> onImport());
         deleteFromFileButton.addActionListener(e -> onDeleteFromFile());
         clearSubjectButton.addActionListener(e -> onClearSubject());
-        UiTheme.primaryButton(importButton);
-        UiTheme.neutralButton(chooseButton);
-        UiTheme.neutralButton(templateButton);
-        UiTheme.neutralButton(deleteFromFileButton);
-        UiTheme.neutralButton(clearSubjectButton);
-        buttons.add(chooseButton);
-        buttons.add(importButton);
-        buttons.add(templateButton);
-        buttons.add(deleteFromFileButton);
-        buttons.add(clearSubjectButton);
-        form.add(buttons, c);
+        subjectBox.addActionListener(e -> updateImportButtonState());
+        subjectBox.setPreferredSize(new Dimension(SUBJECT_FIELD_WIDTH,
+                subjectBox.getPreferredSize().height));
 
-        c.gridx = 0; c.gridy = 3; c.gridwidth = 2;
-        JTextArea info = new JTextArea(
-                "Expected columns: Question | Answer | Module | Marks | Difficulty\n"
-                + "Subject is NOT part of the file - it is selected above.\n"
-                + "The whole file is validated first. Nothing is inserted until you confirm.");
-        info.setEditable(false);
-        info.setOpaque(false);
-        info.setForeground(UiTheme.MUTED);
-        form.add(info, c);
+        // Step 1 - choose the subject.
+        JPanel subjectRow = Ui.leftRow(subjectBox);
 
-        card.add(form, BorderLayout.CENTER);
-        JPanel top = new JPanel();
-        top.setOpaque(false);
-        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        // Step 2 - choose the Excel file, plus the expected-columns note and
+        // the decorative sample table from the reference.
+        JPanel fileRow = new JPanel(new BorderLayout(Theme.S, 0));
+        fileRow.setOpaque(false);
+        fileRow.add(Ui.leftRow(chooseButton, fileLabel), BorderLayout.WEST);
+        fileRow.add(templateButton, BorderLayout.EAST);
+        JPanel step2Body = column(fileRow,
+                Ui.muted("Columns in this order. Subject comes from step 1, not the file."),
+                sampleTable());
+
+        // Step 3 - live check result and the one primary action.
+        JPanel reviewBody = new JPanel(new BorderLayout(0, Theme.S));
+        reviewBody.setOpaque(false);
+        reviewBody.add(checkArea, BorderLayout.NORTH);
+        reviewBody.add(Ui.leftRow(importButton), BorderLayout.CENTER);
+
+        card = Ui.bareCard();
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
-        top.add(titleLabel);
-        top.add(Box.createVerticalStrut(UiTheme.GAP));
-        top.add(card);
-        add(top, BorderLayout.NORTH);
+        JPanel steps = new JPanel();
+        steps.setOpaque(false);
+        steps.setLayout(new BoxLayout(steps, BoxLayout.Y_AXIS));
+        steps.add(stepRow(1, "Choose the subject", subjectRow));
+        steps.add(Ui.rule());
+        steps.add(stepRow(2, "Choose the Excel file", step2Body));
+        steps.add(Ui.rule());
+        steps.add(stepRow(3, "Review and import", reviewBody));
+        card.add(steps, BorderLayout.CENTER);
+
+        // Collapsed destructive section below the card.
+        JButton removeToggle = Ui.danger("Remove questions instead");
+        removeToggle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        removeActions.setOpaque(false);
+        removeActions.setVisible(false);
+        removeActions.add(Ui.leftRow(deleteFromFileButton, clearSubjectButton,
+                Ui.muted("Permanent. Cannot be undone.")), BorderLayout.CENTER);
+        removeToggle.addActionListener(e ->
+                removeActions.setVisible(!removeActions.isVisible()));
+        JPanel removeSection = new JPanel();
+        removeSection.setOpaque(false);
+        removeSection.setLayout(new BoxLayout(removeSection, BoxLayout.Y_AXIS));
+        removeActions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        removeSection.add(removeToggle);
+        removeSection.add(removeActions);
+
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        removeSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(card);
+        content.add(Box.createVerticalStrut(Theme.L));
+        content.add(removeSection);
+        add(content, BorderLayout.CENTER);
 
         try {
             loadSubjects();
             updateImportButtonState();
         } finally {
             initializing = false;
+        }
+    }
+
+    // =====================================================================
+    // Step layout helpers
+    // =====================================================================
+
+    /** One numbered step: round badge on the left, title + content on the right. */
+    private static JPanel stepRow(int number, String title, JComponent body) {
+        JPanel row = new JPanel(new BorderLayout(Theme.M, 0));
+        row.setOpaque(false);
+        row.setBorder(new EmptyBorder(Theme.L, Theme.M, Theme.L, Theme.M));
+        JPanel badgeSlot = new JPanel(new BorderLayout());
+        badgeSlot.setOpaque(false);
+        badgeSlot.add(stepBadge(number), BorderLayout.NORTH);
+        row.add(badgeSlot, BorderLayout.WEST);
+        JPanel text = new JPanel(new BorderLayout(0, Theme.S));
+        text.setOpaque(false);
+        text.add(Ui.bold(title), BorderLayout.NORTH);
+        body.setAlignmentX(Component.LEFT_ALIGNMENT);
+        text.add(body, BorderLayout.CENTER);
+        row.add(text, BorderLayout.CENTER);
+        return row;
+    }
+
+    /** The outlined round step number of the reference (24px accent ring). */
+    private static JLabel stepBadge(int number) {
+        JLabel badge = new JLabel(String.valueOf(number), SwingConstants.CENTER);
+        badge.setOpaque(false);
+        badge.setForeground(Theme.ACCENT_D);
+        badge.putClientProperty("FlatLaf.style", "font:bold");
+        badge.setPreferredSize(new Dimension(Theme.XL, Theme.XL));
+        badge.setMinimumSize(new Dimension(Theme.XL, Theme.XL));
+        badge.setMaximumSize(new Dimension(Theme.XL, Theme.XL));
+        badge.setBorder(new FlatLineBorder(new Insets(0, 0, 0, 0),
+                Theme.ACCENT, 1.5f, Theme.ROW));
+        return badge;
+    }
+
+    /** A vertical stack of left-aligned components with a small gap. */
+    private static JPanel column(JComponent... items) {
+        JPanel stack = new JPanel();
+        stack.setOpaque(false);
+        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
+        boolean first = true;
+        for (JComponent item : items) {
+            if (!first) {
+                stack.add(Box.createVerticalStrut(Theme.S));
+            }
+            first = false;
+            item.setAlignmentX(Component.LEFT_ALIGNMENT);
+            stack.add(item);
+        }
+        return stack;
+    }
+
+    /**
+     * The decorative "expected columns" table of the reference: one muted
+     * sample row, never editable and not part of the tab order.
+     */
+    private static JComponent sampleTable() {
+        String[] columns = {"Question", "Answer", "Module", "Marks", "Difficulty"};
+        Object[][] sample = {{"What is merge sort?", "Divide, sort, merge",
+                "Sorting and Searching", Integer.valueOf(2), "Easy"}};
+        DefaultTableModel model = new DefaultTableModel(sample, columns) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+
+            @Override
+            public Class<?> getColumnClass(int columnIndex) {
+                return columnIndex == 3 ? Integer.class : String.class;
+            }
+        };
+        JTable table = new JTable(model);
+        table.setDefaultEditor(Object.class, null);
+        table.setRowSelectionAllowed(false);
+        table.setFocusable(false);
+        JScrollPane scroll = Ui.table(table);
+        table.setDefaultRenderer(Object.class, mutedCell(SwingConstants.LEFT));
+        table.setDefaultRenderer(String.class, mutedCell(SwingConstants.LEFT));
+        table.setDefaultRenderer(Number.class, mutedCell(SwingConstants.RIGHT));
+        scroll.setBorder(new FlatLineBorder(new Insets(0, 0, 0, 0),
+                Theme.LINE, 1f, Theme.CONTROL_ARC));
+        int rows = table.getTableHeader().getPreferredSize().height
+                + (table.getRowHeight() + Theme.XS) * Math.max(1, table.getRowCount());
+        scroll.setPreferredSize(new Dimension(
+                scroll.getPreferredSize().width, rows));
+        return scroll;
+    }
+
+    /** Muted cell renderer for the decorative sample row. */
+    private static DefaultTableCellRenderer mutedCell(int align) {
+        return new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                super.getTableCellRendererComponent(table, value, false, false, row, column);
+                setHorizontalAlignment(align);
+                setForeground(Theme.MUTED);
+                setBackground(Theme.SURFACE);
+                setBorder(new EmptyBorder(0, Theme.M, 0, Theme.M));
+                return this;
+            }
+        };
+    }
+
+    /**
+     * Caps the card at the reference width without freezing its height, so
+     * the live-check summary can still grow the card.
+     */
+    private void sizeCard() {
+        if (card == null) {
+            return;
+        }
+        card.setPreferredSize(null);
+        Dimension pref = card.getPreferredSize();
+        card.setPreferredSize(new Dimension(CARD_MAX_WIDTH, pref.height));
+        card.setMaximumSize(new Dimension(CARD_MAX_WIDTH, Integer.MAX_VALUE));
+    }
+
+    // =====================================================================
+    // Live check (display only - onImport still validates on its own)
+    // =====================================================================
+
+    private void setCheckView(JComponent view) {
+        checkArea.removeAll();
+        checkArea.add(view, BorderLayout.CENTER);
+        checkArea.revalidate();
+        checkArea.repaint();
+    }
+
+    private void setCheckFailure(String message) {
+        importButton.setText("Import questions");
+        checkFailureLabel.setText(message);
+        setCheckView(checkFailureLabel);
+    }
+
+    /** Shows a validation summary; N &gt; 0 renames the primary action. */
+    private void setCheckSummary(String summary, int rows) {
+        checkSummaryLabel.setText(summary);
+        importButton.setText(rows > 0
+                ? "Import " + rows + " questions" : "Import questions");
+        setCheckView(summaryPanel);
+    }
+
+    /**
+     * Runs the existing validation for DISPLAY ONLY and shows its summary.
+     * Never inserts anything and never opens a dialog; problems are reported
+     * as muted text in the step.
+     */
+    private void updateCheckPreview() {
+        SubjectOption subject = (SubjectOption) subjectBox.getSelectedItem();
+        boolean ready = subject != null && subject.id >= 0
+                && chosenFile != null && chosenFile.exists();
+        if (!ready) {
+            importButton.setText("Import questions");
+            setCheckView(idleLabel);
+            return;
+        }
+        ExcelImportService.ImportReport report;
+        try {
+            report = importService.validate(chosenFile, subject.id);
+        } catch (IOException ex) {
+            setCheckFailure("Check could not run: the file could not be read.");
+            return;
+        } catch (SQLException ex) {
+            setCheckFailure("Check could not run: the question bank is not reachable.");
+            return;
+        } catch (Exception ex) {
+            setCheckFailure("Check could not run: the file could not be processed.");
+            return;
+        }
+        if (!report.isHeaderValid()) {
+            setCheckSummary("Check failed: " + report.getHeaderError(), 0);
+            return;
+        }
+        int rows = report.getTotalRows();
+        int errors = report.getInvalidCount();
+        if (errors == 0) {
+            setCheckSummary("Check passed: " + rows + " rows, 0 errors.", rows);
+        } else {
+            setCheckSummary("Check failed: " + errors + " errors.", 0);
         }
     }
 
@@ -138,6 +359,8 @@ public class ImportPanel extends JPanel {
         importButton.setEnabled(subjectSelected && fileChosen);
         deleteFromFileButton.setEnabled(subjectSelected && fileChosen);
         clearSubjectButton.setEnabled(subjectSelected);
+        updateCheckPreview();
+        sizeCard();
     }
 
     private void onChooseFile() {
@@ -153,6 +376,7 @@ public class ImportPanel extends JPanel {
             }
             chosenFile = f;
             fileLabel.setText(f.getName());
+            fileLabel.setForeground(Theme.INK);
             updateImportButtonState();
         }
     }
@@ -426,7 +650,7 @@ public class ImportPanel extends JPanel {
             System.err.println("[startup] " + message);
             return;
         }
-        JOptionPane.showMessageDialog(this, message, "Import Excel Question Bank",
+        JOptionPane.showMessageDialog(this, message, "Import questions",
                 JOptionPane.ERROR_MESSAGE);
     }
 

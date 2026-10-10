@@ -7,7 +7,6 @@ import service.PDFExportService;
 import service.PaperReviewService;
 
 import javax.swing.AbstractAction;
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -21,10 +20,9 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.KeyStroke;
 import javax.swing.ListSelectionModel;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
-import java.awt.FlowLayout;
-import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
@@ -76,35 +74,35 @@ public class ReviewPaperPanel extends JPanel {
     private final JTextArea questionArea = new JTextArea(4, 70);
     private final JTextArea answerArea = new JTextArea(4, 70);
 
-    private final JButton editButton = new JButton("Edit for This Paper");
-    private final JButton replaceButton = new JButton("Replace Question");
-    private final JButton regenerateButton = new JButton("Regenerate Question");
-    private final JButton updateBankButton = new JButton("Update Question Bank");
-    private final JButton finalizeButton = new JButton("Finalize Paper");
-    private final JButton exportPaperButton = new JButton("Export Question Paper PDF");
-    private final JButton exportKeyButton = new JButton("Export Answer Key PDF");
-    private final JButton closeButton = new JButton("Close");
+    private final JButton editButton = Ui.plain("Edit for This Paper");
+    private final JButton replaceButton = Ui.plain("Replace Question");
+    private final JButton regenerateButton = Ui.plain("Regenerate Question");
+    private final JButton updateBankButton = Ui.danger("Update Question Bank");
+    private final JButton finalizeButton = Ui.primary("Finalize Paper");
+    private final JButton exportPaperButton = Ui.plain("Export Question Paper PDF");
+    private final JButton exportKeyButton = Ui.plain("Export Answer Key PDF");
+    private final JButton closeButton = Ui.plain("Close");
 
     public ReviewPaperPanel() {
-        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
-        setBorder(BorderFactory.createEmptyBorder(
-                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
+        setLayout(new BorderLayout(Theme.S, Theme.S));
+        Ui.pad(this);
 
         JPanel header = new JPanel(new BorderLayout());
-        titleLabel.setFont(titleLabel.getFont().deriveFont(
-                Font.BOLD, UiTheme.TITLE_SIZE));
-        titleLabel.setForeground(UiTheme.TEXT);
-        statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 0));
+        header.setOpaque(false);
+        titleLabel.putClientProperty("FlatLaf.style", "font:+7 bold");
+        titleLabel.setForeground(Theme.INK);
+        statusLabel.setBorder(new EmptyBorder(0, Theme.M, 0, Theme.M));
         header.add(titleLabel, BorderLayout.WEST);
         header.add(statusLabel, BorderLayout.EAST);
         JPanel headerBlock = new JPanel(new BorderLayout());
+        headerBlock.setOpaque(false);
         headerBlock.add(header, BorderLayout.NORTH);
-        headerLabel.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
+        headerLabel.setBorder(new EmptyBorder(Theme.XS, 0, 0, 0));
         headerBlock.add(headerLabel, BorderLayout.SOUTH);
         add(headerBlock, BorderLayout.NORTH);
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        UiTheme.styleTable(table);
+        Ui.styleTable(table);
         table.getAccessibleContext().setAccessibleName("Questions in this paper");
         table.getColumnModel().getColumn(0).setPreferredWidth(40);
         table.getColumnModel().getColumn(1).setPreferredWidth(120);
@@ -120,11 +118,12 @@ public class ReviewPaperPanel extends JPanel {
         questionArea.setWrapStyleWord(true);
         answerArea.setLineWrap(true);
         answerArea.setWrapStyleWord(true);
-        detailInfoLabel.setForeground(UiTheme.MUTED);
+        detailInfoLabel.setForeground(Theme.MUTED);
 
         JPanel detail = new JPanel(new GridBagLayout());
+        detail.setOpaque(false);
         GridBagConstraints c = new GridBagConstraints();
-        c.insets = new Insets(4, 4, 4, 4);
+        c.insets = new Insets(Theme.XS, Theme.XS, Theme.XS, Theme.XS);
         c.anchor = GridBagConstraints.WEST;
         c.gridx = 0;
         c.gridy = 0;
@@ -148,7 +147,8 @@ public class ReviewPaperPanel extends JPanel {
         c.fill = GridBagConstraints.NONE;
         detail.add(detailInfoLabel, c);
 
-        JPanel south = new JPanel(new BorderLayout(4, 4));
+        JPanel south = new JPanel(new BorderLayout(Theme.XS, Theme.XS));
+        south.setOpaque(false);
         south.add(detail, BorderLayout.CENTER);
 
         // Two explicit rows: wrapping in a single FlowLayout inside
@@ -170,33 +170,20 @@ public class ReviewPaperPanel extends JPanel {
                 closeAction.run();
             }
         });
-        UiTheme.neutralButton(editButton);
-        UiTheme.neutralButton(replaceButton);
-        UiTheme.neutralButton(regenerateButton);
-        UiTheme.neutralButton(updateBankButton);
-        UiTheme.primaryButton(finalizeButton);
-        UiTheme.neutralButton(exportPaperButton);
-        UiTheme.neutralButton(exportKeyButton);
-        UiTheme.neutralButton(closeButton);
 
-        JPanel editRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        editRow.add(editButton);
-        editRow.add(replaceButton);
-        editRow.add(regenerateButton);
-        editRow.add(updateBankButton);
-        editRow.add(finalizeButton);
-        JPanel exportRow = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        exportRow.add(exportPaperButton);
-        exportRow.add(exportKeyButton);
-        exportRow.add(closeButton);
-        JPanel buttons = new JPanel(new GridLayout(2, 1, 0, 4));
+        JPanel editRow = Ui.leftRow(editButton, replaceButton, regenerateButton,
+                updateBankButton, finalizeButton);
+        JPanel exportRow = Ui.leftRow(exportPaperButton, exportKeyButton, closeButton);
+        JPanel buttons = new JPanel(new GridLayout(2, 1, 0, Theme.XS));
+        buttons.setOpaque(false);
         buttons.add(editRow);
         buttons.add(exportRow);
         south.add(buttons, BorderLayout.SOUTH);
 
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                new JScrollPane(table), south);
+                Ui.table(table), south);
         split.setResizeWeight(0.55);
+        split.setDividerSize(6);
         split.setBorder(null);
         add(split, BorderLayout.CENTER);
 
@@ -668,18 +655,18 @@ public class ReviewPaperPanel extends JPanel {
         if (review.isFinalized()) {
             statusLabel.setText("FINALIZED - Paper ID " + review.getPaperId()
                     + " (read-only)");
-            statusLabel.setForeground(UiTheme.MUTED);
+            statusLabel.setForeground(Theme.MUTED);
             statusLabel.setToolTipText("This paper is saved and can no longer change.");
             return;
         }
         List<String> errors = reviewService.validate(review);
         if (errors.isEmpty()) {
             statusLabel.setText("VALID - ready to finalize");
-            statusLabel.setForeground(UiTheme.SUCCESS);
+            statusLabel.setForeground(Theme.OK);
             statusLabel.setToolTipText(null);
         } else {
             statusLabel.setText("INVALID - " + errors.size() + " problem(s)");
-            statusLabel.setForeground(UiTheme.DANGER);
+            statusLabel.setForeground(Theme.BAD);
             StringBuilder tip = new StringBuilder();
             for (String error : errors) {
                 tip.append("- ").append(error).append('\n');

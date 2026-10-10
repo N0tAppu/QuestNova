@@ -4,17 +4,23 @@ import model.PaperReview;
 import model.QuestionPaper;
 import service.PaperReviewService;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
-import java.awt.FlowLayout;
+import java.awt.CardLayout;
+import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -30,6 +36,11 @@ import java.util.List;
  * with a selection, always asks for explicit confirmation, removes ONLY
  * the paper's stored rows (the question bank is never affected) and clears
  * the stale selection afterwards.
+ *
+ * Presentation follows the Quest reference (DESIGN.md section v5): the
+ * refresh action lives in the page header, the table sits in a card on the
+ * left and the selected paper's details in a card on the right. Double
+ * clicking a row opens the paper.
  */
 public class GeneratedPapersPanel extends JPanel {
 
@@ -44,10 +55,19 @@ public class GeneratedPapersPanel extends JPanel {
         }
     };
     private final JTable table = new JTable(tableModel);
-    private final JButton openButton = new JButton("Open Paper");
-    private final JButton deleteButton = new JButton("Delete Question Paper");
-    private final JButton refreshButton = new JButton("Refresh");
-    private final JLabel emptyLabel = new JLabel("No papers have been finalized yet.");
+    private final JButton openButton = Ui.primary("Open paper");
+    private final JButton deleteButton = Ui.danger("Delete Question Paper");
+    private final JButton refreshButton = Ui.plain("Refresh");
+    private final JLabel emptyLabel = Ui.muted("Select a paper to see details.");
+
+    // --- detail card (built once, filled on selection) ---
+    private final CardLayout detailCards = new CardLayout();
+    private final JPanel detailPane = new JPanel(detailCards);
+    private final JLabel detailHeading = Ui.bold("");
+    private final JLabel detailSubject = detailValue();
+    private final JLabel detailMarks = detailValue();
+    private final JLabel detailQuestions = detailValue();
+    private final JLabel detailGenerated = detailValue();
 
     private static final SimpleDateFormat DATE_FORMAT =
             new SimpleDateFormat("yyyy-MM-dd HH:mm");
@@ -56,43 +76,58 @@ public class GeneratedPapersPanel extends JPanel {
     private boolean initializing = true;
 
     public GeneratedPapersPanel() {
-        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
-        setBorder(BorderFactory.createEmptyBorder(
-                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
+        setLayout(new BorderLayout(Theme.S, Theme.S));
+        setOpaque(false);
 
-        add(UiTheme.titleStrip("Generated Papers"), BorderLayout.NORTH);
-        UiTheme.styleTable(table);
+        add(Ui.pageHeader("Generated papers", "Double-click a paper to open it.",
+                refreshButton), BorderLayout.NORTH);
+
         table.getAccessibleContext().setAccessibleName("Generated papers");
-
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.getColumnModel().getColumn(0).setPreferredWidth(70);
-        table.getColumnModel().getColumn(1).setPreferredWidth(260);
-        table.getColumnModel().getColumn(2).setPreferredWidth(90);
-        table.getColumnModel().getColumn(3).setPreferredWidth(150);
+        // Fixed widths + horizontal scroll so no column collapses to "..."
+        // when the table card sits next to the 340px detail card.
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.getColumnModel().getColumn(0).setMinWidth(84);
+        table.getColumnModel().getColumn(0).setPreferredWidth(84);
+        table.getColumnModel().getColumn(1).setMinWidth(180);
+        table.getColumnModel().getColumn(1).setPreferredWidth(220);
+        table.getColumnModel().getColumn(2).setMinWidth(104);
+        table.getColumnModel().getColumn(2).setPreferredWidth(104);
+        table.getColumnModel().getColumn(3).setMinWidth(124);
+        table.getColumnModel().getColumn(3).setPreferredWidth(140);
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                updateActionStates();
+                onSelectionChanged();
             }
         });
-        JScrollPane scroll = new JScrollPane(table);
-        add(scroll, BorderLayout.CENTER);
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2 && table.getSelectedRow() >= 0) {
+                    onOpen();
+                }
+            }
+        });
 
-        JPanel south = new JPanel(new BorderLayout());
-        emptyLabel.setForeground(UiTheme.MUTED);
-        emptyLabel.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 0));
-        south.add(emptyLabel, BorderLayout.WEST);
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         openButton.addActionListener(e -> onOpen());
         deleteButton.addActionListener(e -> onDelete());
         refreshButton.addActionListener(e -> refreshPanel());
-        UiTheme.primaryButton(openButton);
-        UiTheme.dangerButton(deleteButton);
-        UiTheme.neutralButton(refreshButton);
-        buttons.add(openButton);
-        buttons.add(deleteButton);
-        buttons.add(refreshButton);
-        south.add(buttons, BorderLayout.EAST);
-        add(south, BorderLayout.SOUTH);
+
+        JPanel tableCard = Ui.bareCard();
+        tableCard.add(Ui.table(table), BorderLayout.CENTER);
+
+        detailPane.setOpaque(false);
+        detailPane.add(buildEmptyView(), "empty");
+        detailPane.add(buildDetailView(), "detail");
+        JPanel detailCard = Ui.bareCard();
+        detailCard.setPreferredSize(new Dimension(340, 0));
+        detailCard.add(detailPane, BorderLayout.CENTER);
+
+        JPanel body = new JPanel(new BorderLayout(Theme.S, 0));
+        body.setOpaque(false);
+        body.add(tableCard, BorderLayout.CENTER);
+        body.add(detailCard, BorderLayout.EAST);
+        add(body, BorderLayout.CENTER);
 
         refreshPanel();
         initializing = false;
@@ -278,6 +313,12 @@ public class GeneratedPapersPanel extends JPanel {
         deleteButton.setEnabled(selected);
     }
 
+    /** Selection drives the action states and the detail card together. */
+    private void onSelectionChanged() {
+        updateActionStates();
+        updateDetail();
+    }
+
     private void rebuildTable() {
         int selected = table.getSelectedRow();
         tableModel.setRowCount(0);
@@ -289,13 +330,114 @@ public class GeneratedPapersPanel extends JPanel {
                     paper.getGeneratedAt() == null
                             ? "" : DATE_FORMAT.format(paper.getGeneratedAt())});
         }
-        emptyLabel.setVisible(tableModel.getRowCount() == 0);
         if (selected >= 0 && selected < tableModel.getRowCount()) {
             table.setRowSelectionInterval(selected, selected);
         } else if (tableModel.getRowCount() > 0) {
             table.setRowSelectionInterval(0, 0);
         }
-        updateActionStates();
+        onSelectionChanged();
+    }
+
+    // --- detail card ----------------------------------------------------
+
+    /** The empty state of the detail card. */
+    private JPanel buildEmptyView() {
+        emptyLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        JPanel empty = new JPanel(new BorderLayout());
+        empty.setOpaque(false);
+        empty.setBorder(new EmptyBorder(Theme.XL, Theme.L, Theme.XL, Theme.L));
+        empty.add(emptyLabel, BorderLayout.CENTER);
+        return empty;
+    }
+
+    /** Subject / total marks / questions / generated, plus the actions. */
+    private JPanel buildDetailView() {
+        JPanel list = new JPanel(new GridBagLayout());
+        list.setOpaque(false);
+        GridBagConstraints g = new GridBagConstraints();
+        g.anchor = GridBagConstraints.NORTHWEST;
+        g.insets = new Insets(0, 0, Theme.S, 0);
+        addDetailRow(list, g, "Subject", detailSubject);
+        addDetailRow(list, g, "Total marks", detailMarks);
+        addDetailRow(list, g, "Questions", detailQuestions);
+        addDetailRow(list, g, "Generated", detailGenerated);
+
+        JPanel top = new JPanel(new BorderLayout(0, Theme.S));
+        top.setOpaque(false);
+        top.add(detailHeading, BorderLayout.NORTH);
+        top.add(list, BorderLayout.CENTER);
+
+        JPanel view = new JPanel(new BorderLayout(0, Theme.M));
+        view.setOpaque(false);
+        view.setBorder(new EmptyBorder(Theme.L, Theme.L, Theme.L, Theme.L));
+        view.add(top, BorderLayout.NORTH);
+        view.add(Ui.leftRow(openButton, deleteButton), BorderLayout.SOUTH);
+        return view;
+    }
+
+    private static void addDetailRow(JPanel list, GridBagConstraints g,
+            String label, JLabel value) {
+        g.gridx = 0;
+        g.weightx = 0;
+        g.fill = GridBagConstraints.NONE;
+        list.add(Ui.muted(label), g);
+        g.gridx = 1;
+        g.weightx = 1;
+        g.fill = GridBagConstraints.HORIZONTAL;
+        list.add(value, g);
+        g.gridy++;
+    }
+
+    private static JLabel detailValue() {
+        JLabel value = new JLabel();
+        value.setForeground(Theme.INK);
+        return value;
+    }
+
+    /** Fills the detail card for the current selection, or shows the empty state. */
+    private void updateDetail() {
+        QuestionPaper paper = selectedPaper();
+        if (paper == null) {
+            emptyLabel.setText("Select a paper to see details.");
+            detailCards.show(detailPane, "empty");
+            return;
+        }
+        detailHeading.setText("Paper " + paper.getPaperId());
+        detailSubject.setText(paper.getSubjectName());
+        detailMarks.setText(String.valueOf(paper.getTotalMarks()));
+        detailQuestions.setText(questionCount(paper.getPaperId()));
+        detailGenerated.setText(paper.getGeneratedAt() == null
+                ? "" : DATE_FORMAT.format(paper.getGeneratedAt()));
+        detailCards.show(detailPane, "detail");
+    }
+
+    private QuestionPaper selectedPaper() {
+        int paperId = getSelectedPaperId();
+        if (paperId < 0) {
+            return null;
+        }
+        for (QuestionPaper candidate : papers) {
+            if (candidate.getPaperId() == paperId) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The history row carries no question count, so it is read through the
+     * existing review service. Read-only: a detail row never opens a dialog.
+     */
+    private String questionCount(int paperId) {
+        try {
+            PaperReview review = reviewService.loadPaper(paperId);
+            if (review != null && review.getQuestions() != null) {
+                return String.valueOf(review.getQuestions().size());
+            }
+        } catch (SQLException ex) {
+            // presentation only - the row simply stays empty
+        }
+        return "\u2014";
     }
 
     private void showError(String message) {

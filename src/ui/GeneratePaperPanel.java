@@ -17,7 +17,8 @@ import service.PaperReviewService;
 import service.PatternPolicy;
 import service.QuestionService;
 
-import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
@@ -35,10 +36,10 @@ import javax.swing.Scrollable;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -139,15 +140,15 @@ public class GeneratePaperPanel extends JPanel {
     };
     private final JTable patternTable = new JTable(patternModel);
     private final JLabel patternTotalLabel = new JLabel();
-    private final JButton addRowButton = new JButton("Add Row");
-    private final JButton editRowButton = new JButton("Edit Row");
-    private final JButton removeRowButton = new JButton("Remove Row");
+    private final JButton addRowButton = Ui.plain("Add Row");
+    private final JButton editRowButton = Ui.plain("Edit Row");
+    private final JButton removeRowButton = Ui.danger("Remove Row");
 
     // --- Section E: pattern policy (Stage 12) ---
     private final JTextField policyAllocationField = new JTextField(6);
     private final JTextField policyCompositionField = new JTextField(10);
-    private final JButton setRuleButton = new JButton("Set Rule");
-    private final JButton applyPolicyButton = new JButton("Apply Pattern Policy");
+    private final JButton setRuleButton = Ui.plain("Set Rule");
+    private final JButton applyPolicyButton = Ui.plain("Apply Pattern Policy");
     private final JLabel policyPreviewLabel =
             new JLabel("No pattern policy applied yet.");
     private final PatternPolicy patternPolicy = new PatternPolicy();
@@ -164,24 +165,30 @@ public class GeneratePaperPanel extends JPanel {
     private final JLabel summaryLabel = new JLabel();
 
     // --- Action buttons ---
-    private final JButton generateButton = new JButton("Generate Paper");
-    private final JButton clearButton = new JButton("Clear Blueprint");
+    private final JButton generateButton = Ui.primary("Generate Paper");
+    private final JButton clearButton = Ui.danger("Clear Blueprint");
+
+    // --- Allocation meter (pinned card under the page header) ---
+    private final Ui.Meter meter = new Ui.Meter();
+    private final JLabel meterText = Ui.bold("0 of 0 marks");
+    private final JLabel meterHint = Ui.muted("");
 
     /** Suppresses error dialogs while the constructor loads initial data. */
     private boolean initializing = true;
 
     public GeneratePaperPanel() {
-        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
-        setBorder(BorderFactory.createEmptyBorder(
-                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
+        setLayout(new BorderLayout(Theme.S, Theme.S));
+        setOpaque(false);
 
-        add(UiTheme.titleStrip("Examination Blueprint Editor"), BorderLayout.NORTH);
-        UiTheme.styleTable(allocTable);
-        UiTheme.styleTable(patternTable);
-        UiTheme.styleTable(previewTable);
+        add(Ui.pageHeader("Examination blueprint",
+                "Define the subject, syllabus, mark split and question pattern."),
+                BorderLayout.NORTH);
+        Ui.styleTable(allocTable);
+        Ui.styleTable(patternTable);
+        Ui.styleTable(previewTable);
         allocTable.getAccessibleContext().setAccessibleName("Module mark allocation");
         patternTable.getAccessibleContext().setAccessibleName("Question pattern");
-        previewTable.getAccessibleContext().setAccessibleName("Derived blueprint preview");
+        previewTable.getAccessibleContext().setAccessibleName("Paper preview");
         allocTable.getColumnModel().getColumn(0).setPreferredWidth(240);
         allocTable.getColumnModel().getColumn(1).setPreferredWidth(95);
         allocTable.getColumnModel().getColumn(2).setPreferredWidth(85);
@@ -196,17 +203,30 @@ public class GeneratePaperPanel extends JPanel {
         previewTable.getColumnModel().getColumn(3).setPreferredWidth(140);
 
         JPanel body = new ScrollBody();
-        body.setLayout(new javax.swing.BoxLayout(body, javax.swing.BoxLayout.Y_AXIS));
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setOpaque(false);
         body.add(buildSectionA());
         body.add(buildSectionB());
         body.add(buildSectionC());
         body.add(buildSectionD());
         body.add(buildSectionE());
-        add(new JScrollPane(body), BorderLayout.CENTER);
+        JScrollPane bodyScroll = new JScrollPane(body);
+        bodyScroll.setBorder(new EmptyBorder(0, 0, 0, 0));
+        bodyScroll.setOpaque(false);
+        bodyScroll.getViewport().setOpaque(false);
+
+        // Header + meter stay pinned; the section body scrolls only when the
+        // window is shorter than the cards, so nothing is ever clipped away.
+        JPanel mid = new JPanel(new BorderLayout(Theme.S, Theme.S));
+        mid.setOpaque(false);
+        mid.add(buildMeterCard(), BorderLayout.NORTH);
+        mid.add(bodyScroll, BorderLayout.CENTER);
 
         JPanel south = new JPanel(new BorderLayout());
+        south.setOpaque(false);
         south.add(buildPreviewSection(), BorderLayout.CENTER);
         south.add(buildActions(), BorderLayout.SOUTH);
+        add(mid, BorderLayout.CENTER);
         add(south, BorderLayout.SOUTH);
 
         updating = true;
@@ -278,8 +298,8 @@ public class GeneratePaperPanel extends JPanel {
     }
 
     private JPanel buildSectionA() {
-        JPanel p = titledPanel("A. Examination Details");
-        p.setLayout(new GridBagLayout());
+        JPanel p = new JPanel(new GridBagLayout());
+        p.setOpaque(false);
         GridBagConstraints c = new GridBagConstraints();
         c.insets = new Insets(4, 6, 4, 6);
         c.anchor = GridBagConstraints.WEST;
@@ -315,149 +335,172 @@ public class GeneratePaperPanel extends JPanel {
         examDifficultyBox.setMinimumSize(new Dimension(
                 Math.min(90, examDifficultyBox.getPreferredSize().width),
                 examDifficultyBox.getPreferredSize().height));
-        return p;
+        return card("A. Examination details", p);
     }
 
     private JPanel buildSectionB() {
-        JPanel p = titledPanel("B. Syllabus Modules - select the modules this examination covers");
-        p.setLayout(new BorderLayout(6, 6));
+        JPanel p = new JPanel(new BorderLayout(Theme.S, Theme.S));
+        p.setOpaque(false);
+        JLabel hint = Ui.muted("Select the modules this examination covers.");
+        hint.setBorder(new EmptyBorder(0, Theme.XS, 0, Theme.XS));
+        p.add(hint, BorderLayout.NORTH);
 
-        JPanel availablePanel = new JPanel(new BorderLayout(4, 4));
+        JPanel availablePanel = new JPanel(new BorderLayout(Theme.XS, Theme.XS));
         availablePanel.setOpaque(false);
-        JLabel availableCaption = new JLabel("Modules of the selected subject:");
-        availableCaption.setForeground(UiTheme.MUTED);
+        JLabel availableCaption = Ui.muted("Modules of the selected subject:");
         availablePanel.add(availableCaption, BorderLayout.NORTH);
         availableList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
-        availablePanel.add(new JScrollPane(availableList), BorderLayout.CENTER);
-        JPanel availableButtons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        availableButtons.setOpaque(false);
-        JButton addButton = new JButton("Add to Syllabus");
-        UiTheme.neutralButton(addButton);
+        JScrollPane availableScroll = new JScrollPane(availableList);
+        availableScroll.setBorder(new EmptyBorder(0, 0, 0, 0));
+        availableScroll.getViewport().setBackground(Theme.SURFACE);
+        availablePanel.add(availableScroll, BorderLayout.CENTER);
+        JButton addButton = Ui.plain("Add to Syllabus");
         addButton.addActionListener(e -> onAddToSyllabus());
-        availableButtons.add(addButton);
-        availablePanel.add(availableButtons, BorderLayout.SOUTH);
+        availablePanel.add(Ui.leftRow(addButton), BorderLayout.SOUTH);
         availablePanel.setPreferredSize(new Dimension(420, 170));
 
-        JPanel selectedPanel = new JPanel(new BorderLayout(4, 4));
+        JPanel selectedPanel = new JPanel(new BorderLayout(Theme.XS, Theme.XS));
         selectedPanel.setOpaque(false);
-        JLabel selectedCaption = new JLabel("Selected for this examination:");
-        selectedCaption.setForeground(UiTheme.MUTED);
+        JLabel selectedCaption = Ui.muted("Selected for this examination:");
         selectedPanel.add(selectedCaption, BorderLayout.NORTH);
         selectedList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        selectedPanel.add(new JScrollPane(selectedList), BorderLayout.CENTER);
-        JPanel selectedButtons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        selectedButtons.setOpaque(false);
-        JButton removeButton = new JButton("Remove");
-        UiTheme.neutralButton(removeButton);
+        JScrollPane selectedScroll = new JScrollPane(selectedList);
+        selectedScroll.setBorder(new EmptyBorder(0, 0, 0, 0));
+        selectedScroll.getViewport().setBackground(Theme.SURFACE);
+        selectedPanel.add(selectedScroll, BorderLayout.CENTER);
+        JButton removeButton = Ui.danger("Remove");
         removeButton.addActionListener(e -> onRemoveFromSyllabus());
-        selectedButtons.add(removeButton);
-        selectedPanel.add(selectedButtons, BorderLayout.SOUTH);
+        selectedPanel.add(Ui.leftRow(removeButton), BorderLayout.SOUTH);
         selectedPanel.setPreferredSize(new Dimension(420, 170));
 
         p.add(availablePanel, BorderLayout.WEST);
         p.add(selectedPanel, BorderLayout.CENTER);
-        return p;
+        return card("B. Syllabus modules", p);
     }
 
     private JPanel buildSectionC() {
-        JPanel p = titledPanel(
-                "C. Module Mark Allocation - edit Allocated Marks; percentage and totals are derived");
-        p.setLayout(new BorderLayout(4, 4));
+        JPanel p = new JPanel(new BorderLayout(Theme.XS, Theme.XS));
+        p.setOpaque(false);
+        JLabel hint = Ui.muted(
+                "Edit Allocated Marks; percentage and totals are derived.");
+        hint.setBorder(new EmptyBorder(0, Theme.XS, 0, Theme.XS));
+        p.add(hint, BorderLayout.NORTH);
         allocTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         allocTable.setRowSelectionAllowed(true);
-        p.add(new JScrollPane(allocTable), BorderLayout.CENTER);
-        allocFooterLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+        JScrollPane scroll = new JScrollPane(allocTable);
+        scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
+        scroll.getViewport().setBackground(Theme.SURFACE);
+        p.add(scroll, BorderLayout.CENTER);
+        allocFooterLabel.setBorder(new EmptyBorder(2, Theme.M, 2, Theme.M));
+        allocFooterLabel.setForeground(Theme.MUTED);
         p.add(allocFooterLabel, BorderLayout.SOUTH);
-        return p;
+        return card("C. Module mark allocation", p);
     }
 
     private JPanel buildSectionD() {
-        JPanel p = titledPanel("D. Question Pattern - how each module is examined");
-        p.setLayout(new BorderLayout(4, 4));
+        JPanel p = new JPanel(new BorderLayout(Theme.XS, Theme.XS));
+        p.setOpaque(false);
+        JLabel hint = Ui.muted("How each module is examined.");
+        hint.setBorder(new EmptyBorder(0, Theme.XS, 0, Theme.XS));
+        p.add(hint, BorderLayout.NORTH);
         patternTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        p.add(new JScrollPane(patternTable), BorderLayout.CENTER);
+        JScrollPane scroll = new JScrollPane(patternTable);
+        scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
+        scroll.getViewport().setBackground(Theme.SURFACE);
+        p.add(scroll, BorderLayout.CENTER);
 
         JPanel south = new JPanel(new BorderLayout());
         south.setOpaque(false);
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        buttons.setOpaque(false);
-        UiTheme.neutralButton(addRowButton);
-        UiTheme.neutralButton(editRowButton);
-        UiTheme.neutralButton(removeRowButton);
-        buttons.add(addRowButton);
-        buttons.add(editRowButton);
-        buttons.add(removeRowButton);
         addRowButton.addActionListener(e -> showPatternDialog(false));
         editRowButton.addActionListener(e -> showPatternDialog(true));
         removeRowButton.addActionListener(e -> onRemovePatternRow());
-        south.add(buttons, BorderLayout.WEST);
-        patternTotalLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+        south.add(Ui.leftRow(addRowButton, editRowButton, removeRowButton),
+                BorderLayout.WEST);
+        patternTotalLabel.setBorder(new EmptyBorder(2, Theme.M, 2, Theme.M));
         south.add(patternTotalLabel, BorderLayout.CENTER);
         p.add(south, BorderLayout.SOUTH);
-        return p;
+        return card("D. Question pattern", p);
     }
 
     private JPanel buildSectionE() {
-        JPanel p = titledPanel(
-                "E. Pattern Policy - one global rule (for example 12 -> 4 + 8),"
-                        + " applied to every allocated module");
-        p.setLayout(new BorderLayout(4, 4));
-        JPanel form = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        form.setOpaque(false);
-        form.add(new JLabel("Allocation marks:"));
-        form.add(policyAllocationField);
-        form.add(new JLabel("Composes as:"));
-        form.add(policyCompositionField);
-        UiTheme.neutralButton(setRuleButton);
-        UiTheme.neutralButton(applyPolicyButton);
-        form.add(setRuleButton);
-        form.add(applyPolicyButton);
+        JPanel p = new JPanel(new BorderLayout(Theme.XS, Theme.XS));
+        p.setOpaque(false);
+        JLabel hint = Ui.muted(
+                "One global rule (for example 12 -> 4 + 8), applied to every"
+                        + " allocated module.");
+        hint.setBorder(new EmptyBorder(0, Theme.XS, 0, Theme.XS));
+        JPanel form = Ui.leftRow(
+                Ui.muted("Allocation marks:"), policyAllocationField,
+                Ui.muted("Composes as:"), policyCompositionField,
+                setRuleButton, applyPolicyButton);
         setRuleButton.addActionListener(e -> onSetPatternRule());
         applyPolicyButton.addActionListener(e -> onApplyPatternPolicy());
-        p.add(form, BorderLayout.NORTH);
-        policyPreviewLabel.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+        JPanel north = new JPanel();
+        north.setOpaque(false);
+        north.setLayout(new BoxLayout(north, BoxLayout.Y_AXIS));
+        north.add(hint);
+        north.add(form);
+        p.add(north, BorderLayout.NORTH);
+        policyPreviewLabel.setBorder(new EmptyBorder(2, Theme.M, 2, Theme.M));
+        policyPreviewLabel.setForeground(Theme.MUTED);
         p.add(policyPreviewLabel, BorderLayout.SOUTH);
-        return p;
+        return card("E. Pattern policy", p);
     }
 
-    private JPanel buildPreviewSection() {        JPanel p = titledPanel(
-                "Derived Blueprint Preview - difficulty shown is a sample; the final draw happens at generation");
-        p.setLayout(new BorderLayout(4, 4));
+    /** Pinned meter card: "X of Y marks" + progress bar + status hint. */
+    private JPanel buildMeterCard() {
+        meterText.putClientProperty("FlatLaf.style", "font:+4 bold");
+        meterText.setAlignmentX(LEFT_ALIGNMENT);
+        meter.setMinimumSize(new Dimension(100, 8));
+        meter.setMaximumSize(new Dimension(Integer.MAX_VALUE, 10));
+        meter.setAlignmentX(LEFT_ALIGNMENT);
+        meterHint.setAlignmentX(LEFT_ALIGNMENT);
+        JPanel stack = new JPanel();
+        stack.setOpaque(false);
+        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
+        stack.setBorder(new EmptyBorder(Theme.M, Theme.M, Theme.M, Theme.M));
+        stack.add(meterText);
+        stack.add(Box.createVerticalStrut(Theme.XS));
+        stack.add(meter);
+        stack.add(Box.createVerticalStrut(Theme.XS));
+        stack.add(meterHint);
+        JPanel c = Ui.bareCard();
+        c.setAlignmentX(LEFT_ALIGNMENT);
+        c.add(stack, BorderLayout.CENTER);
+        return c;
+    }
+
+    private JPanel buildPreviewSection() {
         previewTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        JScrollPane scroll = new JScrollPane(previewTable);
+        JScrollPane scroll = Ui.table(previewTable);
         scroll.setPreferredSize(new Dimension(100, 140));
-        p.add(scroll, BorderLayout.CENTER);
-        summaryLabel.setBorder(BorderFactory.createEmptyBorder(4, 6, 4, 6));
-        p.add(summaryLabel, BorderLayout.SOUTH);
-        return p;
+        JPanel body = new JPanel(new BorderLayout(Theme.XS, 0));
+        body.setOpaque(false);
+        body.add(scroll, BorderLayout.CENTER);
+        summaryLabel.setBorder(new EmptyBorder(
+                Theme.XS, Theme.M, Theme.XS, Theme.M));
+        body.add(summaryLabel, BorderLayout.SOUTH);
+        return card("Paper preview", body);
     }
 
     private JPanel buildActions() {
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        bar.setOpaque(false);
-        bar.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
-        JButton validateButton = new JButton("Validate Blueprint");
-        JButton availabilityButton = new JButton("Validate Availability");
-        validateButton.addActionListener(e -> onValidate());
+        JButton availabilityButton = Ui.plain("Check availability");
         availabilityButton.addActionListener(e -> onValidateAvailability());
         generateButton.addActionListener(e -> onGeneratePaper());
         clearButton.addActionListener(e -> onClear());
-        UiTheme.neutralButton(validateButton);
-        UiTheme.neutralButton(availabilityButton);
-        UiTheme.primaryButton(generateButton);
-        UiTheme.neutralButton(clearButton);
-        bar.add(validateButton);
-        bar.add(availabilityButton);
-        bar.add(generateButton);
-        bar.add(clearButton);
+        JPanel bar = new JPanel(new BorderLayout());
+        bar.setOpaque(false);
+        bar.setBorder(new EmptyBorder(Theme.S, 0, 0, 0));
+        bar.add(Ui.leftRow(clearButton), BorderLayout.WEST);
+        bar.add(Ui.row(availabilityButton, generateButton), BorderLayout.EAST);
         return bar;
     }
 
-    private JPanel titledPanel(String title) {
-        JPanel p = new JPanel();
-        UiTheme.styleCard(p, title);
-        p.setAlignmentX(LEFT_ALIGNMENT);
-        return p;
+    /** Wraps a section body in the shared card chrome (title + hairline). */
+    private JPanel card(String title, JPanel body) {
+        JPanel c = Ui.card(title, body);
+        c.setAlignmentX(LEFT_ALIGNMENT);
+        return c;
     }
 
     // =====================================================================
@@ -566,24 +609,6 @@ public class GeneratePaperPanel extends JPanel {
             refreshAll();
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
-        }
-    }
-
-    private void onValidate() {
-        List<String> errors = blueprintService.validateBlueprint(exam);
-        if (errors.isEmpty()) {
-            List<BlueprintSlot> slots = blueprintService.generateSlots(exam);
-            JOptionPane.showMessageDialog(this,
-                    "The blueprint is valid.\n\nQuestions: " + slots.size()
-                            + "\nTotal marks: " + blueprintService.totalMarks(slots),
-                    "Validate Blueprint", JOptionPane.INFORMATION_MESSAGE);
-        } else {
-            StringBuilder sb = new StringBuilder("The blueprint has problems:\n");
-            for (String error : errors) {
-                sb.append("\n- ").append(error);
-            }
-            JOptionPane.showMessageDialog(this, sb.toString(),
-                    "Validate Blueprint", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -1181,23 +1206,51 @@ public class GeneratePaperPanel extends JPanel {
 
     private void rebuildSummary() {
         List<String> errors = blueprintService.validateBlueprint(exam);
+        updateMeter();
         if (errors.isEmpty()) {
             List<BlueprintSlot> slots = blueprintService.generateSlots(exam);
             summaryLabel.setText(String.format(
                     "<html><b style=\"color:#%06X\">VALID</b> &nbsp; Questions: %d &nbsp;"
                             + " Total marks: %d</html>",
-                    UiTheme.SUCCESS.getRGB() & 0xFFFFFF,
+                    Theme.OK.getRGB() & 0xFFFFFF,
                     slots.size(), blueprintService.totalMarks(slots)));
+            generateButton.setToolTipText(null);
             return;
         }
         StringBuilder sb = new StringBuilder(String.format(
                 "<html><b style=\"color:#%06X\">NOT VALID</b><br>",
-                UiTheme.DANGER.getRGB() & 0xFFFFFF));
+                Theme.BAD.getRGB() & 0xFFFFFF));
         for (String error : errors) {
             sb.append("&bull; ").append(error).append("<br>");
         }
         sb.append("</html>");
         summaryLabel.setText(sb.toString());
+        generateButton.setToolTipText(String.join("\n", errors));
+    }
+
+    /** Meter: allocated marks against the examination total, plus a hint. */
+    private void updateMeter() {
+        int total = exam.getTotalMarks();
+        int allocated = 0;
+        for (Integer moduleId : syllabusIds()) {
+            allocated += exam.getAllocation(moduleId);
+        }
+        meterText.setText(allocated + " of " + total + " marks");
+        meter.set(allocated, Math.max(total, 1));
+        if (total <= 0) {
+            meterHint.setText("Set the examination total marks.");
+            meterHint.setForeground(Theme.MUTED);
+        } else if (allocated > total) {
+            meterHint.setText("Over by " + (allocated - total)
+                    + " marks. Remove or lower a rule.");
+            meterHint.setForeground(Theme.BAD);
+        } else if (allocated < total) {
+            meterHint.setText((total - allocated) + " marks left to allocate.");
+            meterHint.setForeground(Theme.WARN);
+        } else {
+            meterHint.setText("Ready to generate.");
+            meterHint.setForeground(Theme.OK);
+        }
     }
 
     private void setCurrentModule(int moduleId) {

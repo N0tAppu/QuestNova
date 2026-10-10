@@ -5,17 +5,16 @@ import model.Subject;
 import service.ModuleService;
 import service.SubjectService;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
-import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.sql.SQLException;
 import java.util.List;
@@ -23,6 +22,11 @@ import java.util.List;
 /**
  * Panel for managing subjects and their modules (Module 1).
  * All business logic is delegated to SubjectService / ModuleService.
+ *
+ * Presentation follows the Quest reference (DESIGN.md section v1): a page
+ * header above two cards - subjects on the left, the selected subject's
+ * modules on the right. The app shell pads the screen, so this panel adds
+ * no border of its own.
  */
 public class SubjectPanel extends JPanel {
 
@@ -30,14 +34,20 @@ public class SubjectPanel extends JPanel {
     private final ModuleService moduleService = new ModuleService();
 
     private final DefaultTableModel subjectModel = new DefaultTableModel(
-            new String[]{"ID", "Subject Name"}, 0) {
+            new String[]{"ID", "Subject", "Modules"}, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
         }
+
+        /** The module count is a Number so the column renders right-aligned. */
+        @Override
+        public Class<?> getColumnClass(int column) {
+            return column == 2 ? Integer.class : Object.class;
+        }
     };
     private final DefaultTableModel moduleModel = new DefaultTableModel(
-            new String[]{"ID", "Module Name"}, 0) {
+            new String[]{"ID", "Module"}, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
@@ -47,12 +57,16 @@ public class SubjectPanel extends JPanel {
     private final JTable subjectTable = new JTable(subjectModel);
     private final JTable moduleTable = new JTable(moduleModel);
 
-    private final JButton subjectEditButton = new JButton("Edit");
-    private final JButton subjectDeleteButton = new JButton("Delete");
-    private final JButton moduleEditButton = new JButton("Edit");
-    private final JButton moduleDeleteButton = new JButton("Delete");
-    private final JLabel subjectEmptyLabel = new JLabel("No subjects yet.");
-    private final JLabel moduleEmptyLabel = new JLabel("No modules yet.");
+    private final JButton subjectEditButton = Ui.plain("Edit");
+    private final JButton subjectDeleteButton = Ui.danger("Delete");
+    private final JButton subjectAddButton = Ui.primary("Add subject");
+    private final JButton moduleEditButton = Ui.plain("Edit");
+    private final JButton moduleDeleteButton = Ui.danger("Delete");
+    private final JButton moduleAddButton = Ui.primary("Add module");
+
+    private final JLabel modulesTitle = Ui.bold("Modules");
+    private final JLabel subjectEmptyLabel = Ui.muted("No subjects yet.");
+    private final JLabel moduleEmptyLabel = Ui.muted("No modules yet.");
 
     private int selectedSubjectId = -1;
 
@@ -60,48 +74,39 @@ public class SubjectPanel extends JPanel {
     private boolean initializing = true;
 
     public SubjectPanel() {
-        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
-        setBorder(BorderFactory.createEmptyBorder(
-                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
+        setLayout(new BorderLayout(Theme.S, Theme.S));
+        setOpaque(false);
 
-        add(UiTheme.titleStrip("Subjects & Modules"), BorderLayout.NORTH);
+        add(Ui.pageHeader("Subjects & modules", "Select a subject to manage its modules."),
+                BorderLayout.NORTH);
 
-        JPanel center = new JPanel(new GridLayout(1, 2, UiTheme.GAP, 0));
-
-        // --- Subjects side ---
-        JPanel subjectPanel = new JPanel(new BorderLayout(5, 5));
-        UiTheme.styleCard(subjectPanel, "Subjects");
         subjectTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        UiTheme.styleTable(subjectTable);
         subjectTable.getAccessibleContext().setAccessibleName("Subjects");
         subjectTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 onSubjectSelected();
             }
         });
-        subjectPanel.add(new JScrollPane(subjectTable), BorderLayout.CENTER);
-        subjectPanel.add(buildButtons(this::onAddSubject, this::onEditSubject,
-                this::onDeleteSubject, subjectEditButton, subjectDeleteButton,
-                subjectEmptyLabel), BorderLayout.SOUTH);
 
-        // --- Modules side ---
-        JPanel modulePanel = new JPanel(new BorderLayout(5, 5));
-        UiTheme.styleCard(modulePanel, "Modules");
         moduleTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        UiTheme.styleTable(moduleTable);
         moduleTable.getAccessibleContext().setAccessibleName("Modules");
         moduleTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateModuleButtonStates();
             }
         });
-        modulePanel.add(new JScrollPane(moduleTable), BorderLayout.CENTER);
-        modulePanel.add(buildButtons(this::onAddModule, this::onEditModule,
-                this::onDeleteModule, moduleEditButton, moduleDeleteButton,
-                moduleEmptyLabel), BorderLayout.SOUTH);
 
-        center.add(subjectPanel);
-        center.add(modulePanel);
+        subjectEditButton.addActionListener(e -> onEditSubject());
+        subjectDeleteButton.addActionListener(e -> onDeleteSubject());
+        subjectAddButton.addActionListener(e -> onAddSubject());
+        moduleEditButton.addActionListener(e -> onEditModule());
+        moduleDeleteButton.addActionListener(e -> onDeleteModule());
+        moduleAddButton.addActionListener(e -> onAddModule());
+
+        JPanel center = new JPanel(new GridLayout(1, 2, Theme.S, Theme.S));
+        center.setOpaque(false);
+        center.add(buildSubjectCard());
+        center.add(buildModuleCard());
         add(center, BorderLayout.CENTER);
 
         try {
@@ -111,24 +116,40 @@ public class SubjectPanel extends JPanel {
         }
     }
 
-    private JPanel buildButtons(Runnable onAdd, Runnable onEdit, Runnable onDelete,
-            JButton editButton, JButton deleteButton, JLabel emptyLabel) {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        panel.setOpaque(false);
-        JButton addButton = new JButton("Add");
-        addButton.addActionListener(e -> onAdd.run());
-        editButton.addActionListener(e -> onEdit.run());
-        deleteButton.addActionListener(e -> onDelete.run());
-        UiTheme.primaryButton(addButton);
-        UiTheme.neutralButton(editButton);
-        UiTheme.neutralButton(deleteButton);
-        emptyLabel.setForeground(UiTheme.MUTED);
-        panel.add(emptyLabel);
-        panel.add(addButton);
-        panel.add(editButton);
-        panel.add(deleteButton);
-        return panel;
+    // --- Cards ----------------------------------------------------------
+
+    /** Left card: the subjects list with its row actions in the header. */
+    private JPanel buildSubjectCard() {
+        placeEmptyLabel(subjectEmptyLabel);
+        JPanel body = new JPanel(new BorderLayout());
+        body.setOpaque(false);
+        body.add(subjectEmptyLabel, BorderLayout.NORTH);
+        body.add(Ui.table(subjectTable), BorderLayout.CENTER);
+        return Ui.card("Subjects", body,
+                subjectEditButton, subjectDeleteButton, subjectAddButton);
     }
+
+    /**
+     * Right card: the modules of the selected subject. The title follows the
+     * selection ("Modules in &lt;subject&gt;", or "Modules" with no selection).
+     */
+    private JPanel buildModuleCard() {
+        placeEmptyLabel(moduleEmptyLabel);
+        JPanel body = new JPanel(new BorderLayout());
+        body.setOpaque(false);
+        body.add(moduleEmptyLabel, BorderLayout.NORTH);
+        body.add(Ui.table(moduleTable), BorderLayout.CENTER);
+        return Ui.card(modulesTitle, body,
+                moduleEditButton, moduleDeleteButton, moduleAddButton);
+    }
+
+    /** The empty-state note sits directly under the card header. */
+    private static void placeEmptyLabel(JLabel label) {
+        label.setHorizontalAlignment(SwingConstants.CENTER);
+        label.setBorder(new EmptyBorder(Theme.S, Theme.M, Theme.S, Theme.M));
+    }
+
+    // --- Button enablement (unchanged rules) ---
 
     /** Row actions are only meaningful while a subject row is selected. */
     private void updateSubjectButtonStates() {
@@ -142,6 +163,14 @@ public class SubjectPanel extends JPanel {
         boolean hasSelection = moduleTable.getSelectedRow() >= 0;
         moduleEditButton.setEnabled(hasSelection);
         moduleDeleteButton.setEnabled(hasSelection);
+    }
+
+    /** Keeps the right-hand card title in step with the subject selection. */
+    private void updateModuleCardTitle() {
+        int row = subjectTable.getSelectedRow();
+        modulesTitle.setText(row >= 0
+                ? "Modules in " + subjectModel.getValueAt(row, 1)
+                : "Modules");
     }
 
     // --- Subject actions ---
@@ -192,10 +221,8 @@ public class SubjectPanel extends JPanel {
         }
         int id = (int) subjectModel.getValueAt(row, 0);
         String name = (String) subjectModel.getValueAt(row, 1);
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Delete subject \"" + name + "\"?", "Confirm Delete",
-                JOptionPane.YES_NO_OPTION);
-        if (confirm != JOptionPane.YES_OPTION) {
+        if (!Ui.confirm(this, "Confirm Delete",
+                "Delete subject \"" + name + "\"?", "Delete subject")) {
             return;
         }
         try {
@@ -260,10 +287,8 @@ public class SubjectPanel extends JPanel {
         }
         int id = (int) moduleModel.getValueAt(row, 0);
         String name = (String) moduleModel.getValueAt(row, 1);
-        int confirm = JOptionPane.showConfirmDialog(this,
-                "Delete module \"" + name + "\"?", "Confirm Delete",
-                JOptionPane.YES_NO_OPTION);
-        if (confirm != JOptionPane.YES_OPTION) {
+        if (!Ui.confirm(this, "Confirm Delete",
+                "Delete module \"" + name + "\"?", "Delete module")) {
             return;
         }
         try {
@@ -292,6 +317,7 @@ public class SubjectPanel extends JPanel {
         } else {
             selectedSubjectId = -1;
         }
+        updateModuleCardTitle();
         updateSubjectButtonStates();
         refreshModules();
     }
@@ -302,7 +328,9 @@ public class SubjectPanel extends JPanel {
             subjectModel.setRowCount(0);
             int rowToSelect = -1;
             for (Subject s : subjects) {
-                subjectModel.addRow(new Object[]{s.getSubjectId(), s.getSubjectName()});
+                subjectModel.addRow(new Object[]{
+                        s.getSubjectId(), s.getSubjectName(),
+                        moduleCount(s.getSubjectId())});
                 if (s.getSubjectId() == selectedSubjectId) {
                     rowToSelect = subjectModel.getRowCount() - 1;
                 }
@@ -318,6 +346,7 @@ public class SubjectPanel extends JPanel {
         } catch (SQLException ex) {
             showError("Could not load subjects. Please check that MySQL is running.");
         }
+        updateModuleCardTitle();
         subjectEmptyLabel.setVisible(subjectModel.getRowCount() == 0);
         updateSubjectButtonStates();
         // The selection listener normally refreshed the module side already;
@@ -337,11 +366,35 @@ public class SubjectPanel extends JPanel {
             for (Module m : modules) {
                 moduleModel.addRow(new Object[]{m.getModuleId(), m.getModuleName()});
             }
+            syncSubjectModuleCount();
         } catch (SQLException ex) {
             showError("Could not load modules.");
         }
         moduleEmptyLabel.setVisible(moduleModel.getRowCount() == 0);
         updateModuleButtonStates();
+    }
+
+    /**
+     * Module count shown in the subjects table. ModuleService exposes no
+     * count method (only ModuleDAO does), so the count comes from the list
+     * the service already provides - the UI never talks to the DAO.
+     */
+    private int moduleCount(int subjectId) throws SQLException {
+        return moduleService.getModulesBySubject(subjectId).size();
+    }
+
+    /** Keeps the Modules column honest after a module is added or removed. */
+    private void syncSubjectModuleCount() {
+        if (selectedSubjectId < 0) {
+            return;
+        }
+        int count = moduleModel.getRowCount();
+        for (int row = 0; row < subjectModel.getRowCount(); row++) {
+            if ((int) subjectModel.getValueAt(row, 0) == selectedSubjectId) {
+                subjectModel.setValueAt(count, row, 2);
+                return;
+            }
+        }
     }
 
     // =====================================================================

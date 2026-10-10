@@ -6,7 +6,8 @@ import model.Subject;
 import service.QuestionService;
 
 import javax.swing.AbstractAction;
-import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
@@ -18,84 +19,171 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
-import javax.swing.ListSelectionModel;
+import javax.swing.SwingConstants;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.event.ActionEvent;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Question Bank screen: add / edit / delete questions, search and filter
- * by subject, module, marks and difficulty.
- * All business logic is delegated to QuestionService.
+ * Question Bank screen: master-detail with live filtering (v5 redesign).
+ *
+ * Left card: filter bar, "Showing X of Y questions" row and the question
+ * table. Right card: the selected question with its answer, meta data and
+ * the Edit / Delete actions. Typing in Search or Marks (or moving any
+ * combo) refilters immediately - there is no Search button.
+ * All business logic is delegated to {@link QuestionService}.
  */
 public class QuestionPanel extends JPanel {
 
     private final QuestionService questionService = new QuestionService();
+
+    /** Rows currently listed, in table order - the detail pane reads them. */
+    private final List<Question> questions = new ArrayList<>();
 
     private final JComboBox<SubjectOption> subjectFilter = new JComboBox<>();
     private final JComboBox<ModuleOption> moduleFilter = new JComboBox<>();
     private final JComboBox<String> difficultyFilter = new JComboBox<>();
     private final JTextField marksFilter = new JTextField(6);
     private final JTextField searchText = new JTextField(14);
+    private final JButton clearFiltersButton = Ui.link("Clear filters");
 
     private final DefaultTableModel tableModel = new DefaultTableModel(
-            new String[]{"ID", "Question", "Answer", "Subject", "Module", "Marks", "Difficulty"}, 0) {
+            new String[]{"ID", "Question", "Module", "Marks", "Difficulty"}, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
         }
+
+        @Override
+        public Class<?> getColumnClass(int column) {
+            // Integer columns right-align through Ui.table(...).
+            return column == 0 || column == 3 ? Integer.class : String.class;
+        }
     };
     private final JTable table = new JTable(tableModel);
 
-    private final JButton editButton = new JButton("Edit Question");
-    private final JButton deleteButton = new JButton("Delete Question");
-    private final JButton viewAnswerButton = new JButton("View Answer");
-    private final JButton clearAllButton = new JButton("Clear All for Subject");
-    private final JLabel emptyLabel = new JLabel("No questions found.");
+    private final JButton clearAllButton = Ui.danger("Clear subject");
+    private final JButton addButton = Ui.primary("Add question");
+    private final JButton editButton = Ui.plain("Edit");
+    private final JButton deleteButton = Ui.danger("Delete");
+
+    private final CardLayout detailCards = new CardLayout();
+    private final JPanel detailPane = new JPanel(detailCards);
+    private final JTextArea detailQuestion = prose(true);
+    private final JTextArea detailAnswer = prose(false);
+    private final JLabel detailMeta = Ui.muted("");
+    private final JScrollPane detailScroll = new JScrollPane();
+
+    private final JLabel countLabel = Ui.muted("");
+    private final JLabel emptyLabel = Ui.muted("No questions found.");
+
+    /** Size of the whole bank, i.e. the "of Y" in the count row. */
+    private int totalQuestions = 0;
+
+    /** True when the bank changed and the total above has to be reloaded. */
+    private boolean totalStale = true;
+
+    /** True while the module filter is rebuilt: no search per list change. */
+    private boolean loadingModules = false;
 
     /** True while the constructor runs: startup errors must not open dialogs. */
     private boolean initializing = true;
 
     public QuestionPanel() {
-        setLayout(new BorderLayout(UiTheme.GAP, UiTheme.GAP));
-        setBorder(BorderFactory.createEmptyBorder(
-                UiTheme.PAD, UiTheme.PAD, UiTheme.PAD, UiTheme.PAD));
+        setLayout(new BorderLayout(0, Theme.L));
+        setBackground(Theme.BG);
 
-        JPanel north = new JPanel(new BorderLayout());
-        north.add(UiTheme.titleStrip("Question Bank"), BorderLayout.NORTH);
-        north.add(buildFilterBar(), BorderLayout.SOUTH);
-        add(north, BorderLayout.NORTH);
+        addButton.addActionListener(e -> onAdd());
+        clearAllButton.addActionListener(e -> onClearAll());
+        editButton.addActionListener(e -> onEdit());
+        deleteButton.addActionListener(e -> onDelete());
+        add(Ui.pageHeader("Question bank",
+                "Filter the list, select a question to read its answer.",
+                clearAllButton, addButton), BorderLayout.NORTH);
 
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        UiTheme.styleTable(table);
         table.getAccessibleContext().setAccessibleName("Questions");
-        table.getColumnModel().getColumn(0).setPreferredWidth(50);
+        JScrollPane listScroll = Ui.table(table);
+        // Fixed column widths + horizontal scroll: the master card is narrow
+        // next to the detail card, and proportional squeezing used to crush
+        // one column to "..." at 1000px.
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.getColumnModel().getColumn(0).setMinWidth(68);
+        table.getColumnModel().getColumn(0).setPreferredWidth(68);
         table.getColumnModel().getColumn(1).setPreferredWidth(300);
-        table.getColumnModel().getColumn(2).setPreferredWidth(260);
-        table.getColumnModel().getColumn(3).setPreferredWidth(120);
-        table.getColumnModel().getColumn(4).setPreferredWidth(120);
-        table.getColumnModel().getColumn(5).setPreferredWidth(55);
-        table.getColumnModel().getColumn(6).setPreferredWidth(75);
-        table.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                updateRowActionStates();
-            }
+        table.getColumnModel().getColumn(2).setMinWidth(100);
+        table.getColumnModel().getColumn(2).setPreferredWidth(120);
+        table.getColumnModel().getColumn(3).setMinWidth(68);
+        table.getColumnModel().getColumn(3).setPreferredWidth(68);
+        table.getColumnModel().getColumn(4).setMinWidth(96);
+        table.getColumnModel().getColumn(4).setPreferredWidth(110);
+        Ui.difficultyColumn(table, 4);
+        Ui.onSelect(table, modelRow -> {
+            showDetail(modelRow);
+            updateRowActionStates();
         });
-        add(new JScrollPane(table), BorderLayout.CENTER);
 
-        add(buildActionButtons(), BorderLayout.SOUTH);
+        JPanel listCard = Ui.bareCard();
+        listCard.add(buildListTop(), BorderLayout.NORTH);
+        listCard.add(listScroll, BorderLayout.CENTER);
+
+        detailPane.setOpaque(false);
+        detailPane.add(buildDetail(), "detail");
+        JLabel emptyDetail = Ui.muted("Select a question to read its answer.");
+        emptyDetail.setHorizontalAlignment(SwingConstants.CENTER);
+        detailPane.add(emptyDetail, "empty");
+        JPanel detailCard = Ui.bareCard();
+        detailCard.setPreferredSize(new Dimension(340, 0));
+        detailCard.add(detailPane);
+
+        JPanel body = new JPanel(new BorderLayout(Theme.L, 0));
+        body.setOpaque(false);
+        body.add(listCard, BorderLayout.CENTER);
+        body.add(detailCard, BorderLayout.EAST);
+        add(body, BorderLayout.CENTER);
+
+        updateCountLabel();
         updateRowActionStates();
         updateClearAllState();
-        emptyLabel.setVisible(tableModel.getRowCount() == 0);
 
+        // Live filtering: Enter is optional, never required.
         searchText.addActionListener(e -> search());
         marksFilter.addActionListener(e -> search());
+        DocumentListener liveFilter = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                search();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                search();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                search();
+            }
+        };
+        searchText.getDocument().addDocumentListener(liveFilter);
+        marksFilter.getDocument().addDocumentListener(liveFilter);
+
         getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(
                 KeyStroke.getKeyStroke("control F"), "focusSearch");
         getActionMap().put("focusSearch", new AbstractAction() {
@@ -114,79 +202,86 @@ public class QuestionPanel extends JPanel {
         }
     }
 
-    // --- Filter bar ---
+    // --- Filter bar / count row ---
 
+    /** Filter bar + "Showing X of Y questions" row that tops the list card. */
+    private JPanel buildListTop() {
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
+        top.add(buildFilterBar(), BorderLayout.NORTH);
+
+        JPanel countRow = new JPanel(new BorderLayout());
+        countRow.setOpaque(false);
+        countRow.setBorder(new EmptyBorder(Theme.XS, Theme.M, Theme.XS, Theme.M));
+        countRow.add(countLabel, BorderLayout.WEST);
+        countRow.add(emptyLabel, BorderLayout.EAST);
+
+        JPanel sub = new JPanel(new BorderLayout());
+        sub.setOpaque(false);
+        sub.add(Ui.rule(), BorderLayout.NORTH);
+        sub.add(countRow, BorderLayout.CENTER);
+        sub.add(Ui.rule(), BorderLayout.SOUTH);
+        top.add(sub, BorderLayout.SOUTH);
+        return top;
+    }
+
+    /**
+     * Search, Subject, Module, Marks and Difficulty filters, then the
+     * "Clear filters" link. Wraps like the reference bar so nothing is cut
+     * off on a 1000x640 window.
+     */
     private JPanel buildFilterBar() {
-        JPanel bar = new JPanel(new BorderLayout(0, 2));
-        UiTheme.styleCard(bar, "Search / Filter");
+        clearFiltersButton.addActionListener(e -> resetFilters());
 
-        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        filters.setOpaque(false);
-        filters.add(new JLabel("Subject:"));
-        subjectFilter.addActionListener(e -> onSubjectFilterChanged());
-        filters.add(subjectFilter);
-
-        filters.add(new JLabel("Module:"));
-        filters.add(moduleFilter);
-
-        filters.add(new JLabel("Marks:"));
+        searchText.putClientProperty("JTextField.placeholderText", "Question or answer");
+        searchText.putClientProperty("JTextField.showClearButton", true);
         marksFilter.setToolTipText("Leave empty to ignore");
-        filters.add(marksFilter);
 
-        filters.add(new JLabel("Difficulty:"));
-        difficultyFilter.addItem("");
+        difficultyFilter.addItem("All difficulties");
         difficultyFilter.addItem(Question.DIFFICULTY_EASY);
         difficultyFilter.addItem(Question.DIFFICULTY_MEDIUM);
         difficultyFilter.addItem(Question.DIFFICULTY_HARD);
-        filters.add(difficultyFilter);
 
-        filters.add(new JLabel("Search:"));
-        searchText.setToolTipText("Search inside question text");
-        filters.add(searchText);
+        subjectFilter.addActionListener(e -> onSubjectFilterChanged());
+        moduleFilter.addActionListener(e -> {
+            if (!loadingModules) {
+                search();
+            }
+        });
+        difficultyFilter.addActionListener(e -> search());
 
-        JButton searchButton = new JButton("Search");
-        searchButton.addActionListener(e -> search());
-        JButton resetButton = new JButton("Reset");
-        resetButton.addActionListener(e -> resetFilters());
-        UiTheme.neutralButton(searchButton);
-        UiTheme.neutralButton(resetButton);
+        JPanel filters = new JPanel(new WrappingRow());
+        filters.setOpaque(false);
+        filters.add(labeled("Search", searchText));
+        filters.add(labeled("Subject", subjectFilter));
+        filters.add(labeled("Module", moduleFilter));
+        filters.add(labeled("Marks", marksFilter));
+        filters.add(labeled("Difficulty", difficultyFilter));
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        actions.setOpaque(false);
-        actions.add(searchButton);
-        actions.add(resetButton);
-
+        // The link is pinned to the trailing edge while the filters wrap
+        // onto extra rows on a narrow window (the reference's flexible gap).
+        JPanel bar = new JPanel(new BorderLayout(Theme.S, 0));
+        bar.setOpaque(false);
+        bar.setBorder(new EmptyBorder(Theme.S, Theme.M, Theme.S, Theme.M));
         bar.add(filters, BorderLayout.CENTER);
-        bar.add(actions, BorderLayout.SOUTH);
+        // Same stacked cell as the filters so the link lines up with them.
+        bar.add(labeled("", clearFiltersButton), BorderLayout.EAST);
         return bar;
     }
 
-    // --- Action buttons ---
+    /** A small muted label stacked above its control. */
+    private static JComponent labeled(String label, JComponent control) {
+        JPanel cell = new JPanel(new BorderLayout(0, Theme.XS));
+        cell.setOpaque(false);
+        cell.add(Ui.muted(label), BorderLayout.NORTH);
+        cell.add(control, BorderLayout.SOUTH);
+        return cell;
+    }
 
-    private JPanel buildActionButtons() {
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton addButton = new JButton("Add Question");
-
-        addButton.addActionListener(e -> onAdd());
-        editButton.addActionListener(e -> onEdit());
-        deleteButton.addActionListener(e -> onDelete());
-        viewAnswerButton.addActionListener(e -> onViewAnswer());
-        clearAllButton.addActionListener(e -> onClearAll());
-
-        UiTheme.primaryButton(addButton);
-        UiTheme.neutralButton(editButton);
-        UiTheme.neutralButton(deleteButton);
-        UiTheme.neutralButton(viewAnswerButton);
-        UiTheme.neutralButton(clearAllButton);
-        emptyLabel.setForeground(UiTheme.MUTED);
-
-        bar.add(emptyLabel);
-        bar.add(addButton);
-        bar.add(editButton);
-        bar.add(deleteButton);
-        bar.add(viewAnswerButton);
-        bar.add(clearAllButton);
-        return bar;
+    private void updateCountLabel() {
+        countLabel.setText("Showing " + tableModel.getRowCount()
+                + " of " + totalQuestions + " questions");
+        emptyLabel.setVisible(tableModel.getRowCount() == 0);
     }
 
     /** Row actions are only meaningful while a table row is selected. */
@@ -194,13 +289,94 @@ public class QuestionPanel extends JPanel {
         boolean hasSelection = table.getSelectedRow() >= 0;
         editButton.setEnabled(hasSelection);
         deleteButton.setEnabled(hasSelection);
-        viewAnswerButton.setEnabled(hasSelection);
     }
 
     /** Clear-all is subject-scoped: never enabled on "(All Subjects)". */
     private void updateClearAllState() {
         SubjectOption s = (SubjectOption) subjectFilter.getSelectedItem();
         clearAllButton.setEnabled(s != null && s.id >= 0);
+    }
+
+    // --- Detail pane ---
+
+    /** Master-detail: the selected question and its answer, or the empty state. */
+    private JComponent buildDetail() {
+        JPanel answer = new JPanel(new BorderLayout(0, Theme.XS)) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                            RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(Theme.TINT);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(),
+                            Theme.CONTROL_ARC, Theme.CONTROL_ARC);
+                } finally {
+                    g2.dispose();
+                }
+            }
+        };
+        answer.setOpaque(false);
+        answer.setBorder(new EmptyBorder(Theme.S, Theme.M, Theme.S, Theme.M));
+        JLabel answerTitle = Ui.bold("Answer");
+        answerTitle.setForeground(Theme.ACCENT_D);
+        answer.add(answerTitle, BorderLayout.NORTH);
+        answer.add(detailAnswer, BorderLayout.CENTER);
+
+        JPanel buttons = Ui.leftRow(editButton, deleteButton);
+
+        JPanel col = new JPanel();
+        col.setOpaque(false);
+        col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
+        col.setBorder(new EmptyBorder(Theme.L, Theme.L, Theme.L, Theme.L));
+        for (JComponent c : new JComponent[]{detailQuestion, answer, detailMeta, buttons}) {
+            c.setAlignmentX(Component.LEFT_ALIGNMENT);
+            col.add(c);
+            col.add(Box.createVerticalStrut(Theme.S));
+        }
+        // Pin the stack to the top so the answer panel keeps its content
+        // height instead of stretching to fill the pane and pushing the
+        // Edit / Delete buttons to the bottom edge.
+        col.add(Box.createVerticalGlue());
+
+        detailScroll.setViewportView(col);
+        detailScroll.setBorder(null);
+        detailScroll.setOpaque(false);
+        detailScroll.getViewport().setOpaque(false);
+        detailScroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        return detailScroll;
+    }
+
+    /** Question prose: read-only, wraps on words, no chrome of its own. */
+    private static JTextArea prose(boolean heading) {
+        JTextArea area = new JTextArea();
+        area.setEditable(false);
+        area.setOpaque(false);
+        area.setLineWrap(true);
+        area.setWrapStyleWord(true);
+        area.setBorder(null);
+        if (heading) {
+            area.putClientProperty("FlatLaf.style", "font:+2 bold");
+        }
+        return area;
+    }
+
+    /** Shows the question of the given model row, or the empty state. */
+    private void showDetail(int modelRow) {
+        Question q = modelRow >= 0 && modelRow < questions.size()
+                ? questions.get(modelRow) : null;
+        if (q == null) {
+            detailCards.show(detailPane, "empty");
+            return;
+        }
+        detailQuestion.setText(q.getQuestionText());
+        detailAnswer.setText(q.getAnswerText());
+        detailMeta.setText("<html>" + q.getSubjectName() + " \u00B7 " + q.getModuleName()
+                + "<br>" + q.getMarks() + " marks \u00B7 " + q.getDifficulty()
+                + " \u00B7 ID " + q.getQuestionId() + "</html>");
+        detailCards.show(detailPane, "detail");
+        detailScroll.getVerticalScrollBar().setValue(0);
     }
 
     // --- CRUD actions ---
@@ -212,6 +388,7 @@ public class QuestionPanel extends JPanel {
         }
         try {
             questionService.addQuestion(form.toQuestion());
+            totalStale = true;
             search();
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
@@ -241,6 +418,7 @@ public class QuestionPanel extends JPanel {
             Question updated = form.toQuestion();
             updated.setQuestionId(id);
             questionService.updateQuestion(updated);
+            totalStale = true;
             search();
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
@@ -264,37 +442,12 @@ public class QuestionPanel extends JPanel {
         }
         try {
             questionService.deleteQuestion(id);
+            totalStale = true;
             search();
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
         } catch (SQLException ex) {
             showError("Could not delete the question.");
-        }
-    }
-
-    private void onViewAnswer() {
-        int row = table.getSelectedRow();
-        if (row < 0) {
-            showError("Select a question to view its answer.");
-            return;
-        }
-        int id = (int) tableModel.getValueAt(row, 0);
-        try {
-            Question q = questionService.getQuestionById(id);
-            if (q == null) {
-                showError("The selected question no longer exists.");
-                search();
-                return;
-            }
-            JTextArea area = new JTextArea(q.getAnswerText(), 8, 50);
-            area.setEditable(false);
-            area.setLineWrap(true);
-            area.setWrapStyleWord(true);
-            JScrollPane scroll = new JScrollPane(area);
-            JOptionPane.showMessageDialog(this, scroll, "Answer",
-                    JOptionPane.INFORMATION_MESSAGE);
-        } catch (SQLException ex) {
-            showError("Could not load the answer.");
         }
     }
 
@@ -325,6 +478,7 @@ public class QuestionPanel extends JPanel {
             QuestionService.BulkDeleteResult result =
                     questionService.deleteAllForSubject(s.id);
             QuestionDeleteConfirm.showResult(this, result);
+            totalStale = true;
             search();
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
@@ -335,6 +489,7 @@ public class QuestionPanel extends JPanel {
 
     // --- Search / filter ---
 
+    /** Reloads the table from the service. Called by every filter change. */
     private void search() {
         Integer keepQuestionId = null;
         int selectedRow = table.getSelectedRow();
@@ -344,10 +499,9 @@ public class QuestionPanel extends JPanel {
         Integer subjectId = null;
         Integer moduleId = null;
         Integer marks = null;
-        String difficulty = (String) difficultyFilter.getSelectedItem();
-        if (difficulty != null && difficulty.isEmpty()) {
-            difficulty = null;
-        }
+        // Index 0 is "All difficulties"; never hand that label to the service.
+        String difficulty = difficultyFilter.getSelectedIndex() <= 0
+                ? null : (String) difficultyFilter.getSelectedItem();
 
         SubjectOption s = (SubjectOption) subjectFilter.getSelectedItem();
         if (s != null && s.id >= 0) {
@@ -360,25 +514,34 @@ public class QuestionPanel extends JPanel {
         String marksText = marksFilter.getText().trim();
         if (!marksText.isEmpty()) {
             try {
-                marks = Integer.parseInt(marksText);
-                if (marks <= 0) {
-                    showError("Marks filter must be a positive whole number.");
-                    return;
+                int parsed = Integer.parseInt(marksText);
+                if (parsed > 0) {
+                    marks = parsed;
                 }
+                // 0 or negative: no marks filter (never an error dialog).
             } catch (NumberFormatException ex) {
-                showError("Marks filter must be a whole number.");
-                return;
+                // Still typing: ignore the partial value, no dialog.
             }
         }
 
         try {
-            List<Question> questions = questionService.searchQuestions(
+            List<Question> found = questionService.searchQuestions(
                     subjectId, moduleId, marks, difficulty, searchText.getText());
+            questions.clear();
+            questions.addAll(found);
             tableModel.setRowCount(0);
             for (Question q : questions) {
                 tableModel.addRow(new Object[]{q.getQuestionId(), q.getQuestionText(),
-                        q.getAnswerText(), q.getSubjectName(), q.getModuleName(),
-                        q.getMarks(), q.getDifficulty()});
+                        q.getModuleName(), q.getMarks(), q.getDifficulty()});
+            }
+            if (totalStale) {
+                try {
+                    totalQuestions = questionService.searchQuestions(
+                            null, null, null, null, null).size();
+                    totalStale = false;
+                } catch (SQLException | IllegalArgumentException ex) {
+                    // Keep the last known total; the search above reports real errors.
+                }
             }
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
@@ -394,13 +557,14 @@ public class QuestionPanel extends JPanel {
                 }
             }
         }
-        // Refresh the row-action states for the surviving selection.
+        // Refresh the detail pane and row-action states for the surviving selection.
         updateRowActionStates();
-        emptyLabel.setVisible(tableModel.getRowCount() == 0);
+        updateCountLabel();
     }
 
     private void resetFilters() {
         subjectFilter.setSelectedIndex(0);
+        moduleFilter.setSelectedIndex(0);
         difficultyFilter.setSelectedIndex(0);
         marksFilter.setText("");
         searchText.setText("");
@@ -429,17 +593,23 @@ public class QuestionPanel extends JPanel {
     }
 
     private void loadModulesIntoFilter(int subjectId) {
-        moduleFilter.removeAllItems();
-        moduleFilter.addItem(new ModuleOption(-1, "(All Modules)"));
-        if (subjectId < 0) {
-            return;
-        }
+        // Rebuilding the items must not fire a search per list change.
+        loadingModules = true;
         try {
-            for (Module m : questionService.getModulesBySubject(subjectId)) {
-                moduleFilter.addItem(new ModuleOption(m.getModuleId(), m.getModuleName()));
+            moduleFilter.removeAllItems();
+            moduleFilter.addItem(new ModuleOption(-1, "(All Modules)"));
+            if (subjectId < 0) {
+                return;
             }
-        } catch (SQLException ex) {
-            showError("Could not load modules.");
+            try {
+                for (Module m : questionService.getModulesBySubject(subjectId)) {
+                    moduleFilter.addItem(new ModuleOption(m.getModuleId(), m.getModuleName()));
+                }
+            } catch (SQLException ex) {
+                showError("Could not load modules.");
+            }
+        } finally {
+            loadingModules = false;
         }
     }
 
@@ -448,6 +618,7 @@ public class QuestionPanel extends JPanel {
      * list stays in sync with Subjects & Modules management.
      */
     public void refreshFilters() {
+        totalStale = true;
         loadSubjectsIntoFilter();
         search();
     }
@@ -456,19 +627,28 @@ public class QuestionPanel extends JPanel {
     // Public facade (used by the handlers and the GUI smoke test)
     // =====================================================================
 
-    /** True while a question row is selected. */
+    /**
+     * True while a question row is selected - the detail pane then shows
+     * its Edit action.
+     */
     public boolean isEditEnabled() {
-        return editButton.isEnabled();
+        return table.getSelectedRow() >= 0;
     }
 
-    /** True while a question row is selected. */
+    /**
+     * True while a question row is selected - the detail pane then shows
+     * its Delete action.
+     */
     public boolean isDeleteEnabled() {
-        return deleteButton.isEnabled();
+        return table.getSelectedRow() >= 0;
     }
 
-    /** True while a question row is selected. */
+    /**
+     * True while a question row is selected - the answer is then readable
+     * in the detail pane (it replaced the old "View Answer" dialog).
+     */
     public boolean isViewAnswerEnabled() {
-        return viewAnswerButton.isEnabled();
+        return table.getSelectedRow() >= 0;
     }
 
     public int getQuestionRowCount() {
@@ -477,7 +657,7 @@ public class QuestionPanel extends JPanel {
 
     /**
      * True while a concrete subject is selected in the filter - the
-     * "Clear All for Subject" action never runs against "(All Subjects)".
+     * "Clear subject" action never runs against "(All Subjects)".
      */
     public boolean isClearAllEnabled() {
         return clearAllButton.isEnabled();
@@ -710,6 +890,62 @@ public class QuestionPanel extends JPanel {
         @Override
         public String toString() {
             return name;
+        }
+    }
+
+    /**
+     * A left-aligned FlowLayout that wraps onto extra rows and reports a
+     * preferred height matching the real row count. Plain FlowLayout always
+     * reports a single-row height, so on a 1000x640 window the wrapped
+     * filter controls would spill over the count row below them.
+     */
+    private static class WrappingRow extends FlowLayout {
+        WrappingRow() {
+            super(FlowLayout.LEFT, Theme.S, Theme.S);
+        }
+
+        @Override
+        public Dimension preferredLayoutSize(Container target) {
+            return measure(target);
+        }
+
+        @Override
+        public Dimension minimumLayoutSize(Container target) {
+            return measure(target);
+        }
+
+        /** Preferred size for the target's current width, counting wrapped rows. */
+        private Dimension measure(Container target) {
+            synchronized (target.getTreeLock()) {
+                Insets insets = target.getInsets();
+                int horizontal = insets.left + insets.right + getHgap() * 2;
+                int vertical = insets.top + insets.bottom + getVgap();
+                int maxWidth = target.getSize().width - horizontal;
+                if (maxWidth <= 0) {
+                    maxWidth = Integer.MAX_VALUE;
+                }
+
+                int rowWidth = 0;
+                int rowHeight = 0;
+                int widest = 0;
+                for (Component child : target.getComponents()) {
+                    if (!child.isVisible()) {
+                        continue;
+                    }
+                    Dimension size = child.getPreferredSize();
+                    if (rowWidth + size.width > maxWidth && rowWidth > 0) {
+                        widest = Math.max(widest, rowWidth - getHgap());
+                        vertical += rowHeight + getVgap();
+                        rowWidth = 0;
+                        rowHeight = 0;
+                    }
+                    rowWidth += size.width + getHgap();
+                    rowHeight = Math.max(rowHeight, size.height);
+                }
+                widest = Math.max(widest, rowWidth - getHgap());
+                vertical += rowHeight;
+                return new Dimension(horizontal + widest, vertical);
+            }
         }
     }
 }
