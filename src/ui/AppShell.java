@@ -1,8 +1,11 @@
 package ui;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.DefaultListModel;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -53,13 +56,18 @@ public class AppShell extends JPanel {
     private final Set<String> groups = new HashSet<>();
     private final Map<String, Integer> badges = new HashMap<>();
     private final List<String> screenNames = new ArrayList<>();
+    private final JButton appearanceButton = new JButton();
+    private final JButton accentButton = new JButton();
+    private final JPanel side = new JPanel(new BorderLayout());
+    private final JPanel bar = new JPanel(new BorderLayout());
     private Host host;
 
     public AppShell() {
         super(new BorderLayout());
-        setBackground(Theme.BG);
+        Ui.bg(this, "BG");
 
-        nav.setBackground(Theme.BG);
+        nav.setBackground(Theme.SIDE);
+        nav.putClientProperty("qn.bg", "SIDE");
         nav.setFixedCellHeight(34);
         nav.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         nav.setCellRenderer(new NavRenderer());
@@ -94,14 +102,14 @@ public class AppShell extends JPanel {
         });
 
         JPanel side = new JPanel(new BorderLayout());
-        side.setBackground(Theme.BG);
+        Ui.bg(side, "SIDE");
         side.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Theme.LINE));
         side.setPreferredSize(new Dimension(224, 0));
         side.add(buildBrand(), BorderLayout.NORTH);
         side.add(nav, BorderLayout.CENTER);
+        side.add(buildFooter(), BorderLayout.SOUTH);
 
-        JPanel bar = new JPanel(new BorderLayout());
-        bar.setBackground(Theme.BG);
+        Ui.bg(bar, "BG");
         bar.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.LINE),
                 new EmptyBorder(5, 28, 5, 28)));
@@ -109,7 +117,7 @@ public class AppShell extends JPanel {
         bar.add(where, BorderLayout.EAST);
 
         JPanel main = new JPanel(new BorderLayout());
-        main.setBackground(Theme.BG);
+        Ui.bg(main, "BG");
         main.add(content, BorderLayout.CENTER);
         main.add(bar, BorderLayout.SOUTH);
 
@@ -133,7 +141,7 @@ public class AppShell extends JPanel {
      */
     public void screen(String name, JComponent view) {
         JPanel pad = new JPanel(new BorderLayout());
-        pad.setBackground(Theme.BG);
+        Ui.bg(pad, "BG");
         pad.setBorder(new EmptyBorder(Theme.XL, 28, Theme.L, 28));
         pad.add(view);
         content.add(pad, name);
@@ -202,9 +210,118 @@ public class AppShell extends JPanel {
         }
     }
 
+    // --- appearance footer (bottom-left) --------------------------------
+
+    /**
+     * Light/Dark toggle + accent scheme switcher, anchored at the very
+     * bottom of the sidebar below the Content and Paper navigation.
+     */
+    private JPanel buildFooter() {
+        styleFooterButton(appearanceButton);
+        styleFooterButton(accentButton);
+        appearanceButton.addActionListener(e -> onToggleAppearance());
+        accentButton.addActionListener(e -> onCycleAccent());
+        updateAppearanceButton();
+        updateAccentButton();
+
+        JPanel stack = new JPanel();
+        stack.setOpaque(false);
+        stack.setLayout(new javax.swing.BoxLayout(stack, javax.swing.BoxLayout.Y_AXIS));
+        stack.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.LINE),
+                new EmptyBorder(Theme.S, Theme.XS, Theme.S, Theme.XS)));
+        appearanceButton.setAlignmentX(LEFT_ALIGNMENT);
+        accentButton.setAlignmentX(LEFT_ALIGNMENT);
+        stack.add(appearanceButton);
+        stack.add(Box.createVerticalStrut(2));
+        stack.add(accentButton);
+        return stack;
+    }
+
+    private static void styleFooterButton(JButton b) {
+        Ui.applyButtonStyle(b, "sidetoggle");
+        b.setFocusable(true);
+        b.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
+    }
+
+    private void onToggleAppearance() {
+        Theme.set(Theme.appearance == Theme.Appearance.DARK
+                ? Theme.Appearance.LIGHT : Theme.Appearance.DARK, Theme.accent);
+    }
+
+    private void onCycleAccent() {
+        Theme.Accent next = Theme.accent == Theme.Accent.GREEN
+                ? Theme.Accent.GRAPHITE
+                : Theme.accent == Theme.Accent.GRAPHITE
+                        ? Theme.Accent.PLUM : Theme.Accent.GREEN;
+        Theme.set(Theme.appearance, next);
+    }
+
+    private void updateAppearanceButton() {
+        boolean dark = Theme.appearance == Theme.Appearance.DARK;
+        appearanceButton.setText(dark ? "☾ Dark" : "☀ Light");
+        appearanceButton.setToolTipText(dark
+                ? "Switch to Light Mode" : "Switch to Dark Mode");
+        appearanceButton.getAccessibleContext().setAccessibleName(
+                dark ? "Appearance: Dark. Switch to Light Mode"
+                        : "Appearance: Light. Switch to Dark Mode");
+    }
+
+    private void updateAccentButton() {
+        String name = Theme.accent.name();
+        String label = name.charAt(0) + name.substring(1).toLowerCase();
+        accentButton.setText("<html><font color='" + Theme.hex(Theme.ACCENT)
+                + "'>&#9679;</font>&nbsp; " + label + " accent</html>");
+        accentButton.setToolTipText("Accent scheme: " + label
+                + " (click for the next scheme)");
+        accentButton.getAccessibleContext().setAccessibleName(
+                "Accent scheme: " + label + ". Activate for the next scheme.");
+    }
+
+    /** Re-applies borders and footer state after a live theme switch. */
+    public void refreshTheme() {
+        side.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Theme.LINE));
+        bar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Theme.LINE),
+                new EmptyBorder(5, 28, 5, 28)));
+        nav.setBackground(Theme.SIDE);
+        updateAppearanceButton();
+        updateAccentButton();
+        nav.repaint();
+        repaint();
+    }
+
     // --- brand ----------------------------------------------------------
 
     private JPanel buildBrand() {
+        JLabel mark = brandMark();
+
+        JLabel name = new JLabel("Quest Nova");
+        name.putClientProperty("FlatLaf.style", "font:bold");
+        Ui.fg(name, "INK");
+
+        JPanel brand = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        brand.setOpaque(false);
+        brand.setBorder(new EmptyBorder(18, 12, 12, 10));
+        brand.add(mark);
+        brand.add(name);
+        return brand;
+    }
+
+    /**
+     * The shipped Quest Nova icon at sidebar size. The painted "QP" tile is
+     * only a resilience fallback for a missing asset - {@link Branding#source()}
+     * tells verification which one is in use.
+     */
+    private static JLabel brandMark() {
+        java.awt.Image asset = Branding.available() ? Branding.icon(30) : null;
+        if (asset != null) {
+            JLabel icon = new JLabel(new ImageIcon(asset), JLabel.CENTER);
+            icon.setOpaque(false);
+            icon.setPreferredSize(new Dimension(30, 30));
+            icon.setToolTipText("Quest Nova");
+            return icon;
+        }
         JLabel mark = new JLabel("QP", JLabel.CENTER) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -231,17 +348,7 @@ public class AppShell extends JPanel {
         mark.setForeground(Color.WHITE);
         mark.setFont(mark.getFont().deriveFont(Font.BOLD, 12f));
         mark.setPreferredSize(new Dimension(30, 30));
-
-        JLabel name = new JLabel("<html>Question Paper<br>Generator</html>");
-        name.putClientProperty("FlatLaf.style", "font:bold");
-        name.setForeground(Theme.INK);
-
-        JPanel brand = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        brand.setOpaque(false);
-        brand.setBorder(new EmptyBorder(18, 12, 12, 10));
-        brand.add(mark);
-        brand.add(name);
-        return brand;
+        return mark;
     }
 
     // --- nav renderer ---------------------------------------------------
@@ -264,7 +371,7 @@ public class AppShell extends JPanel {
                 return p;
             }
 
-            p.setBackground(sel ? Theme.SURFACE : Theme.BG);
+            p.setBackground(sel ? Theme.TINT : Theme.SIDE);
             text.setForeground(sel ? Theme.ACCENT_D : Theme.INK);
             text.putClientProperty("FlatLaf.style", sel ? "font:bold" : "font:normal");
             p.setBorder(BorderFactory.createCompoundBorder(

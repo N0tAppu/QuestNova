@@ -22,12 +22,14 @@ import javax.swing.BoxLayout;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.JViewport;
@@ -173,6 +175,15 @@ public class GeneratePaperPanel extends JPanel {
     private final JLabel meterText = Ui.bold("0 of 0 marks");
     private final JLabel meterHint = Ui.muted("");
 
+    // --- Responsive split (A-E cards above, preview below) ---
+    private JSplitPane splitPane;
+    private JPanel previewSection;
+    private JButton previewCollapseButton;
+    /** Height of the preview pane while collapsed (header + summary row). */
+    private int collapsedPreviewHeight = 48;
+    private boolean previewCollapsed;
+    private boolean splitInitialised;
+
     /** Suppresses error dialogs while the constructor loads initial data. */
     private boolean initializing = true;
 
@@ -205,11 +216,17 @@ public class GeneratePaperPanel extends JPanel {
         JPanel body = new ScrollBody();
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         body.setOpaque(false);
-        body.add(buildSectionA());
-        body.add(buildSectionB());
-        body.add(buildSectionC());
-        body.add(buildSectionD());
-        body.add(buildSectionE());
+        JPanel[] sections = {
+                buildSectionA(), buildSectionB(), buildSectionC(),
+                buildSectionD(), buildSectionE()
+        };
+        for (int i = 0; i < sections.length; i++) {
+            sections[i].setAlignmentX(LEFT_ALIGNMENT);
+            body.add(sections[i]);
+            if (i < sections.length - 1) {
+                body.add(Box.createVerticalStrut(Theme.L));
+            }
+        }
         JScrollPane bodyScroll = new JScrollPane(body);
         bodyScroll.setBorder(new EmptyBorder(0, 0, 0, 0));
         bodyScroll.setOpaque(false);
@@ -217,17 +234,45 @@ public class GeneratePaperPanel extends JPanel {
 
         // Header + meter stay pinned; the section body scrolls only when the
         // window is shorter than the cards, so nothing is ever clipped away.
-        JPanel mid = new JPanel(new BorderLayout(Theme.S, Theme.S));
-        mid.setOpaque(false);
-        mid.add(buildMeterCard(), BorderLayout.NORTH);
-        mid.add(bodyScroll, BorderLayout.CENTER);
+        JPanel top = new JPanel(new BorderLayout(Theme.S, Theme.S));
+        top.setOpaque(false);
+        top.add(buildMeterCard(), BorderLayout.NORTH);
+        top.add(bodyScroll, BorderLayout.CENTER);
+        top.setMinimumSize(new Dimension(0, 220));
 
-        JPanel south = new JPanel(new BorderLayout());
-        south.setOpaque(false);
-        south.add(buildPreviewSection(), BorderLayout.CENTER);
-        south.add(buildActions(), BorderLayout.SOUTH);
-        add(mid, BorderLayout.CENTER);
-        add(south, BorderLayout.SOUTH);
+        // Preview + actions live in the bottom pane of the split: the user can
+        // drag the divider (or collapse the preview entirely) to keep the
+        // A-E cards in view while editing on a short window.
+        previewSection = buildPreviewSection();
+        JPanel bottom = new JPanel(new BorderLayout(0, Theme.S));
+        bottom.setOpaque(false);
+        bottom.add(previewSection, BorderLayout.CENTER);
+        bottom.add(buildActions(), BorderLayout.SOUTH);
+
+        splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, top, bottom);
+        splitPane.setOpaque(false);
+        splitPane.setBorder(new EmptyBorder(0, 0, 0, 0));
+        splitPane.setResizeWeight(0.62);
+        splitPane.setContinuousLayout(true);
+        splitPane.setDividerSize(6);
+        add(splitPane, BorderLayout.CENTER);
+
+        // The divider position needs the panel to have a real height; place it
+        // once the window is laid out (first display or first resize).
+        splitPane.addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentResized(java.awt.event.ComponentEvent e) {
+                if (!splitInitialised && splitPane.getHeight() > 0) {
+                    splitInitialised = true;
+                    if (previewCollapsed) {
+                        splitPane.setDividerLocation(
+                                splitPane.getHeight() - collapsedPreviewHeight);
+                    } else {
+                        splitPane.setDividerLocation(0.62);
+                    }
+                }
+            }
+        });
 
         updating = true;
         try {
@@ -352,7 +397,7 @@ public class GeneratePaperPanel extends JPanel {
         availableList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         JScrollPane availableScroll = new JScrollPane(availableList);
         availableScroll.setBorder(new EmptyBorder(0, 0, 0, 0));
-        availableScroll.getViewport().setBackground(Theme.SURFACE);
+        Ui.viewport(availableScroll, "SURFACE");
         availablePanel.add(availableScroll, BorderLayout.CENTER);
         JButton addButton = Ui.plain("Add to Syllabus");
         addButton.addActionListener(e -> onAddToSyllabus());
@@ -366,7 +411,7 @@ public class GeneratePaperPanel extends JPanel {
         selectedList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane selectedScroll = new JScrollPane(selectedList);
         selectedScroll.setBorder(new EmptyBorder(0, 0, 0, 0));
-        selectedScroll.getViewport().setBackground(Theme.SURFACE);
+        Ui.viewport(selectedScroll, "SURFACE");
         selectedPanel.add(selectedScroll, BorderLayout.CENTER);
         JButton removeButton = Ui.danger("Remove");
         removeButton.addActionListener(e -> onRemoveFromSyllabus());
@@ -389,10 +434,10 @@ public class GeneratePaperPanel extends JPanel {
         allocTable.setRowSelectionAllowed(true);
         JScrollPane scroll = new JScrollPane(allocTable);
         scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
-        scroll.getViewport().setBackground(Theme.SURFACE);
+        Ui.viewport(scroll, "SURFACE");
         p.add(scroll, BorderLayout.CENTER);
         allocFooterLabel.setBorder(new EmptyBorder(2, Theme.M, 2, Theme.M));
-        allocFooterLabel.setForeground(Theme.MUTED);
+        Ui.fg(allocFooterLabel, "MUTED");
         p.add(allocFooterLabel, BorderLayout.SOUTH);
         return card("C. Module mark allocation", p);
     }
@@ -406,7 +451,7 @@ public class GeneratePaperPanel extends JPanel {
         patternTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         JScrollPane scroll = new JScrollPane(patternTable);
         scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
-        scroll.getViewport().setBackground(Theme.SURFACE);
+        Ui.viewport(scroll, "SURFACE");
         p.add(scroll, BorderLayout.CENTER);
 
         JPanel south = new JPanel(new BorderLayout());
@@ -442,7 +487,7 @@ public class GeneratePaperPanel extends JPanel {
         north.add(form);
         p.add(north, BorderLayout.NORTH);
         policyPreviewLabel.setBorder(new EmptyBorder(2, Theme.M, 2, Theme.M));
-        policyPreviewLabel.setForeground(Theme.MUTED);
+        Ui.fg(policyPreviewLabel, "MUTED");
         p.add(policyPreviewLabel, BorderLayout.SOUTH);
         return card("E. Pattern policy", p);
     }
@@ -480,7 +525,42 @@ public class GeneratePaperPanel extends JPanel {
         summaryLabel.setBorder(new EmptyBorder(
                 Theme.XS, Theme.M, Theme.XS, Theme.M));
         body.add(summaryLabel, BorderLayout.SOUTH);
-        return card("Paper preview", body);
+        previewCollapseButton = Ui.link("Collapse");
+        previewCollapseButton.setToolTipText(
+                "Hide or show the preview to free vertical space.");
+        previewCollapseButton.addActionListener(e -> togglePreview());
+        JPanel card = Ui.card("Paper preview", body, previewCollapseButton);
+        card.setAlignmentX(LEFT_ALIGNMENT);
+        return card;
+    }
+
+    /** Collapses or expands the preview pane and moves the divider. */
+    private void togglePreview() {
+        previewCollapsed = !previewCollapsed;
+        previewCollapseButton.setText(previewCollapsed ? "Expand" : "Collapse");
+        if (previewSection != null) {
+            Object bodyProp = previewSection.getClientProperty("qn.cardBody");
+            if (bodyProp instanceof JComponent) {
+                ((JComponent) bodyProp).setVisible(!previewCollapsed);
+            }
+            // The collapsed height is the card's header row (46px) + hairline.
+            collapsedPreviewHeight = previewSection.getHeight() > 0
+                    && !previewCollapsed
+                    ? previewSection.getHeight()
+                    : Math.max(48, previewSection.getPreferredSize().height);
+            if (previewCollapsed) {
+                collapsedPreviewHeight = 48;
+            }
+        }
+        if (splitPane != null && splitPane.getHeight() > 0) {
+            if (previewCollapsed) {
+                splitPane.setDividerLocation(
+                        splitPane.getHeight() - collapsedPreviewHeight);
+            } else {
+                splitPane.setResizeWeight(0.62);
+                splitPane.setDividerLocation(0.62);
+            }
+        }
     }
 
     private JPanel buildActions() {
@@ -1239,17 +1319,17 @@ public class GeneratePaperPanel extends JPanel {
         meter.set(allocated, Math.max(total, 1));
         if (total <= 0) {
             meterHint.setText("Set the examination total marks.");
-            meterHint.setForeground(Theme.MUTED);
+            Ui.fg(meterHint, "MUTED");
         } else if (allocated > total) {
             meterHint.setText("Over by " + (allocated - total)
                     + " marks. Remove or lower a rule.");
-            meterHint.setForeground(Theme.BAD);
+            Ui.fg(meterHint, "BAD");
         } else if (allocated < total) {
             meterHint.setText((total - allocated) + " marks left to allocate.");
-            meterHint.setForeground(Theme.WARN);
+            Ui.fg(meterHint, "WARN");
         } else {
             meterHint.setText("Ready to generate.");
-            meterHint.setForeground(Theme.OK);
+            Ui.fg(meterHint, "OK");
         }
     }
 

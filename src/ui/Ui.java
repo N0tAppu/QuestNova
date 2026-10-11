@@ -19,9 +19,11 @@ import javax.swing.table.TableModel;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
@@ -50,50 +52,330 @@ public final class Ui {
 
     /** The one primary action of a card or screen area. */
     public static JButton primary(String t) {
-        return btn(t, "background:#0E6B7E;foreground:#FFFFFF;"
-                + "hoverBackground:#0A4F5E;pressedBackground:#083F4B;"
-                + "borderWidth:0;font:bold");
+        return btn(t, "primary");
     }
 
     /** Destructive action: red text, never a red fill. */
     public static JButton danger(String t) {
-        return btn(t, "foreground:#B3261E;hoverBackground:#FBEDEC;"
-                + "pressedBackground:#F7E4E3");
+        return btn(t, "danger");
     }
 
     /** Neutral action: white with a hairline border. */
     public static JButton plain(String t) {
-        return btn(t, "background:#FFFFFF;foreground:#1C2326;"
-                + "borderColor:#C9C5BC;borderWidth:1;"
-                + "hoverBackground:#F6F5F2;pressedBackground:#ECEAE4");
+        return btn(t, "plain");
     }
 
     /** Text-only action, e.g. "Clear filters", "Download template". */
     public static JButton link(String t) {
-        return btn(t, "foreground:#0E6B7E;borderWidth:0;background:null;"
-                + "hoverBackground:#E4F1F3");
+        return btn(t, "link");
     }
 
-    private static JButton btn(String t, String style) {
+    /** FlatLaf style string for a button kind, built from the live tokens. */
+    private static String btnStyle(String kind) {
+        switch (kind) {
+            case "primary":
+                return "arc:8;margin:5,14,5,14;background:" + Theme.hex(Theme.ACCENT)
+                        + ";foreground:" + Theme.hex(Theme.ACCENT_FG)
+                        + ";hoverBackground:" + Theme.hex(Theme.ACCENT_D)
+                        + ";pressedBackground:" + Theme.hex(Theme.ACCENT_P)
+                        + ";borderWidth:0;font:bold";
+            case "danger":
+                return "arc:8;margin:5,14,5,14;foreground:" + Theme.hex(Theme.BAD)
+                        + ";hoverBackground:" + Theme.hex(Theme.BAD_BG)
+                        + ";pressedBackground:" + Theme.hex(Theme.DANGER_OFF);
+            case "plain":
+                return "arc:8;margin:5,14,5,14;background:" + Theme.hex(Theme.SURFACE)
+                        + ";foreground:" + Theme.hex(Theme.INK)
+                        + ";borderColor:" + Theme.hex(Theme.CTRL_LINE) + ";borderWidth:1"
+                        + ";hoverBackground:" + Theme.hex(Theme.BG)
+                        + ";pressedBackground:" + Theme.hex(Theme.HEAD_BG);
+            case "sidetoggle":
+                return "arc:8;margin:6,12,6,12;foreground:" + Theme.hex(Theme.INK)
+                        + ";background:null;hoverBackground:" + Theme.hex(Theme.TINT)
+                        + ";borderWidth:0";
+            case "link":
+            default:
+                return "arc:8;margin:5,14,5,14;foreground:" + Theme.hex(Theme.ACCENT_D)
+                        + ";borderWidth:0;background:null"
+                        + ";hoverBackground:" + Theme.hex(Theme.TINT);
+        }
+    }
+
+    private static JButton btn(String t, String kind) {
         JButton b = new JButton(t);
-        b.putClientProperty("FlatLaf.style", "arc:8;margin:5,14,5,14;" + style);
+        applyButtonStyle(b, kind);
         b.setMnemonic(0);
         return b;
+    }
+
+    /** Registers the button kind and applies its current-token style. */
+    public static void applyButtonStyle(JButton b, String kind) {
+        b.putClientProperty("qn.btn", kind);
+        b.putClientProperty("FlatLaf.style", btnStyle(kind));
+    }
+
+    // --- token-bound colours ---------------------------------------------
+
+    /** Resolves a token name to its live colour (unknown names -> INK). */
+    public static Color token(String name) {
+        switch (name) {
+            case "BG": return Theme.BG;
+            case "SIDE": return Theme.SIDE;
+            case "SURFACE": return Theme.SURFACE;
+            case "INPUT": return Theme.INPUT;
+            case "INK": return Theme.INK;
+            case "MUTED": return Theme.MUTED;
+            case "LINE": return Theme.LINE;
+            case "CTRL_LINE": return Theme.CTRL_LINE;
+            case "HEAD_BG": return Theme.HEAD_BG;
+            case "ROW_A": return Theme.ROW_A;
+            case "ROW_B": return Theme.ROW_B;
+            case "GRID": return Theme.GRID;
+            case "HOVER": return Theme.HOVER;
+            case "TRACK": return Theme.TRACK;
+            case "ACCENT": return Theme.ACCENT;
+            case "ACCENT_D": return Theme.ACCENT_D;
+            case "ACCENT_P": return Theme.ACCENT_P;
+            case "ACCENT_FG": return Theme.ACCENT_FG;
+            case "TINT": return Theme.TINT;
+            case "TINT_IDLE": return Theme.TINT_IDLE;
+            case "OK": return Theme.OK;
+            case "OK_BG": return Theme.OK_BG;
+            case "WARN": return Theme.WARN;
+            case "BAD": return Theme.BAD;
+            case "BAD_BG": return Theme.BAD_BG;
+            case "PRIMARY_OFF": return Theme.PRIMARY_OFF;
+            case "DANGER_OFF": return Theme.DANGER_OFF;
+            case "DISABLED_FG": return Theme.DISABLED_FG;
+            case "FOCUS": return Theme.FOCUS;
+            default: return Theme.INK;
+        }
+    }
+
+    /**
+     * Sets a foreground from a token AND registers the token name, so a
+     * later theme switch can re-apply the fresh colour ({@link #retheme}).
+     */
+    public static <T extends JComponent> T fg(T c, String token) {
+        c.setForeground(token(token));
+        c.putClientProperty("qn.fg", token);
+        return c;
+    }
+
+    /**
+     * Sets a background from a token AND registers the token name, so a
+     * later theme switch can re-apply the fresh colour ({@link #retheme}).
+     */
+    public static <T extends JComponent> T bg(T c, String token) {
+        c.setBackground(token(token));
+        c.putClientProperty("qn.bg", token);
+        return c;
+    }
+
+    /**
+     * Re-applies every token-bound property (buttons, foregrounds,
+     * backgrounds, card borders, table colours) under {@code root} after a
+     * theme switch. Renderers read Theme at paint time and need no help.
+     */
+    public static void retheme(Component root) {
+        if (root instanceof JComponent) {
+            rethemeOne((JComponent) root);
+        }
+        if (root instanceof Container) {
+            for (Component child : ((Container) root).getComponents()) {
+                retheme(child);
+            }
+        }
+    }
+
+    private static void rethemeOne(JComponent j) {
+        String kind = (String) j.getClientProperty("qn.btn");
+        if (kind != null) {
+            j.putClientProperty("FlatLaf.style", btnStyle(kind));
+        }
+        String fgTok = (String) j.getClientProperty("qn.fg");
+        if (fgTok != null) {
+            j.setForeground(token(fgTok));
+        }
+        String bgTok = (String) j.getClientProperty("qn.bg");
+        if (bgTok != null) {
+            j.setBackground(token(bgTok));
+        }
+        if (j.getClientProperty("qn.card") != null) {
+            j.setBackground(Theme.SURFACE);
+            j.setBorder(new FlatLineBorder(new Insets(0, 0, 0, 0),
+                    Theme.LINE, 1f, Theme.CARD_ARC));
+        }
+        if (j instanceof JTable && j.getClientProperty("qn.table") != null) {
+            applyTableColors((JTable) j);
+        }
+        if (j instanceof JScrollPane) {
+            JScrollPane sp = (JScrollPane) j;
+            String vp = (String) sp.getClientProperty("qn.viewport");
+            if (vp != null && sp.getViewport() != null) {
+                sp.getViewport().setBackground(token(vp));
+            } else if (sp.getViewport() != null
+                    && sp.getViewport().getClientProperty("qn.bg") == null) {
+                // Plain scroll pane (e.g. syllabus JLists): FlatLaf caches
+                // the viewport background at install time; reset it so the
+                // list body follows the current mode after a switch.
+                Color uiVp = javax.swing.UIManager.getColor("List.background");
+                if (uiVp == null) {
+                    uiVp = javax.swing.UIManager.getColor("Panel.background");
+                }
+                if (uiVp != null) {
+                    sp.getViewport().setBackground(uiVp);
+                }
+            }
+        }
+        // Fallback: FlatLaf UI delegates cache background at install time and
+        // updateComponentTreeUI does not re-read UIManager for them. Reset
+        // unregistered common component types from the live UIManager values
+        // so an already-constructed tree never retains the previous theme's
+        // colours after a switch. Skip components already owned by a qn.*
+        // registration (qn.bg, qn.card, qn.btn, qn.table). Not gated on
+        // isOpaque(): FlatLaf inputs report false but still carry a stale
+        // background field that some UI delegates consult when painting.
+        if (bgTok == null
+                && j.getClientProperty("qn.card") == null
+                && j.getClientProperty("qn.btn") == null
+                && j.getClientProperty("qn.table") == null) {
+            Color uiBg = lookupUiBackground(j);
+            if (uiBg != null) {
+                j.setBackground(uiBg);
+            }
+        }
+        if (fgTok == null && j.getClientProperty("qn.btn") == null) {
+            Color uiFg = lookupUiForeground(j);
+            if (uiFg != null) {
+                j.setForeground(uiFg);
+            }
+        }
+    }
+
+    /** UIManager background key for a common component type, or null. */
+    private static Color lookupUiBackground(JComponent j) {
+        if (j instanceof javax.swing.JComboBox) {
+            return javax.swing.UIManager.getColor("ComboBox.background");
+        }
+        if (j instanceof javax.swing.JSpinner) {
+            return javax.swing.UIManager.getColor("Spinner.background");
+        }
+        if (j instanceof javax.swing.JTextField
+                || j instanceof javax.swing.JTextArea
+                || j instanceof javax.swing.JFormattedTextField) {
+            return javax.swing.UIManager.getColor("TextField.background");
+        }
+        if (j instanceof javax.swing.JCheckBox) {
+            return javax.swing.UIManager.getColor("CheckBox.background");
+        }
+        if (j instanceof javax.swing.JRadioButton) {
+            return javax.swing.UIManager.getColor("RadioButton.background");
+        }
+        if (j instanceof javax.swing.JList) {
+            return javax.swing.UIManager.getColor("List.background");
+        }
+        if (j instanceof javax.swing.table.JTableHeader) {
+            return javax.swing.UIManager.getColor("TableHeader.background");
+        }
+        if (j instanceof javax.swing.JPanel) {
+            return javax.swing.UIManager.getColor("Panel.background");
+        }
+        if (j instanceof javax.swing.JToolTip) {
+            return javax.swing.UIManager.getColor("ToolTip.background");
+        }
+        return null;
+    }
+
+    /** UIManager foreground key for a common component type, or null. */
+    private static Color lookupUiForeground(JComponent j) {
+        if (j instanceof javax.swing.JComboBox) {
+            return javax.swing.UIManager.getColor("ComboBox.foreground");
+        }
+        if (j instanceof javax.swing.JTextField
+                || j instanceof javax.swing.JTextArea
+                || j instanceof javax.swing.JFormattedTextField) {
+            return javax.swing.UIManager.getColor("TextField.foreground");
+        }
+        if (j instanceof javax.swing.JCheckBox) {
+            return javax.swing.UIManager.getColor("CheckBox.foreground");
+        }
+        if (j instanceof javax.swing.JRadioButton) {
+            return javax.swing.UIManager.getColor("RadioButton.foreground");
+        }
+        if (j instanceof javax.swing.JList) {
+            return javax.swing.UIManager.getColor("List.foreground");
+        }
+        if (j instanceof javax.swing.table.JTableHeader) {
+            return javax.swing.UIManager.getColor("TableHeader.foreground");
+        }
+        if (j instanceof javax.swing.JPanel) {
+            return javax.swing.UIManager.getColor("Panel.foreground");
+        }
+        if (j instanceof javax.swing.JToolTip) {
+            return javax.swing.UIManager.getColor("ToolTip.foreground");
+        }
+        return null;
     }
 
     // --- text -----------------------------------------------------------
 
     public static JLabel muted(String t) {
-        JLabel l = new JLabel(t);
-        l.setForeground(Theme.MUTED);
-        return l;
+        return fg(new JLabel(t), "MUTED");
     }
 
     public static JLabel bold(String t) {
-        JLabel l = new JLabel(t);
-        l.putClientProperty("FlatLaf.style", "font:bold");
-        l.setForeground(Theme.INK);
+        TruncLabel l = new TruncLabel(t);
+        fg(l, "INK");
         return l;
+    }
+
+    /**
+     * A bold heading that ellipsizes instead of hard-clipping when its cell
+     * is narrower than the text, so long card titles ("Modules in &lt;subject&gt;")
+     * degrade gracefully instead of overlapping the actions beside them.
+     */
+    public static final class TruncLabel extends JLabel {
+
+        private TruncLabel(String text) {
+            super(text);
+            putClientProperty("FlatLaf.style", "font:bold");
+            setForeground(Theme.INK);
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            String text = getText();
+            if (text == null || text.isEmpty() || text.startsWith("<html>")) {
+                super.paintComponent(g);
+                return;
+            }
+            Graphics2D g2 = (Graphics2D) g.create();
+            try {
+                g2.clipRect(0, 0, getWidth(), getHeight());
+                FontMetrics fm = g2.getFontMetrics(getFont());
+                Insets in = getInsets();
+                int avail = getWidth() - in.left - in.right;
+                String draw = text;
+                if (fm.stringWidth(draw) > avail) {
+                    String ell = "...";
+                    int end = text.length();
+                    while (end > 0
+                            && fm.stringWidth(text.substring(0, end) + ell) > avail) {
+                        end--;
+                    }
+                    draw = end > 0 ? text.substring(0, end) + ell : ell;
+                }
+                int x = in.left;
+                int y = in.top + Math.max(0, (getHeight() - in.top - in.bottom
+                        - fm.getHeight()) / 2) + fm.getAscent();
+                g2.setColor(getForeground());
+                g2.setFont(getFont());
+                g2.drawString(draw, x, y);
+            } finally {
+                g2.dispose();
+            }
+        }
     }
 
     // --- page header ----------------------------------------------------
@@ -105,7 +387,7 @@ public final class Ui {
     public static JPanel pageHeader(String title, String hint, JComponent... actions) {
         JLabel t = new JLabel(title);
         t.putClientProperty("FlatLaf.style", "font:+7 bold");
-        t.setForeground(Theme.INK);
+        fg(t, "INK");
         JPanel text = new JPanel(new GridLayout(2, 1, 0, 2));
         text.setOpaque(false);
         text.add(t);
@@ -150,14 +432,18 @@ public final class Ui {
     // --- cards ----------------------------------------------------------
 
     /**
-     * A white card with a header row (title left, actions right) and a
-     * hairline rule under the header.
+     * A white card with a tinted header row (title left, actions right) and a
+     * hairline rule under the header. The HEAD_BG tint separates the panel
+     * header from the card body.
      */
     public static JPanel card(JComponent title, JComponent body, JComponent... actions) {
         JPanel head = new JPanel(new BorderLayout());
-        head.setOpaque(false);
+        head.setOpaque(true);
+        bg(head, "HEAD_BG");
         head.setBorder(new EmptyBorder(Theme.S, Theme.M, Theme.S, Theme.S));
-        head.add(title, BorderLayout.WEST);
+        // CENTER, not WEST: WEST never shrinks, so a long title paints over
+        // the actions when the header is narrow. CENTER yields to EAST.
+        head.add(title, BorderLayout.CENTER);
         if (actions != null && actions.length > 0) {
             head.add(row(actions), BorderLayout.EAST);
         }
@@ -168,6 +454,7 @@ public final class Ui {
         top.add(rule(), BorderLayout.SOUTH);
         JPanel c = bareCard();
         c.add(top, BorderLayout.NORTH);
+        c.putClientProperty("qn.cardBody", body);
         c.add(body, BorderLayout.CENTER);
         return c;
     }
@@ -180,7 +467,8 @@ public final class Ui {
     /** Card with no header (filter bars, detail panes, tables). */
     public static JPanel bareCard() {
         JPanel c = new JPanel(new BorderLayout());
-        c.setBackground(Theme.SURFACE);
+        c.putClientProperty("qn.card", "1");
+        bg(c, "SURFACE");
         c.setBorder(new FlatLineBorder(new Insets(0, 0, 0, 0), Theme.LINE, 1f,
                 Theme.CARD_ARC));
         return c;
@@ -189,7 +477,7 @@ public final class Ui {
     /** A 1px hairline separator. */
     public static JComponent rule() {
         JPanel r = new JPanel();
-        r.setBackground(Theme.LINE);
+        bg(r, "LINE");
         r.setPreferredSize(new Dimension(0, 1));
         return r;
     }
@@ -201,23 +489,63 @@ public final class Ui {
      * Number from getColumnClass - they right-align and their headers follow.
      */
     public static void styleTable(JTable t) {
+        t.putClientProperty("qn.table", "1");
+        applyTableColors(t);
         t.setRowHeight(Theme.ROW);
         t.setFillsViewportHeight(true);
         t.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         t.setShowVerticalLines(false);
         t.setShowHorizontalLines(true);
-        t.setGridColor(new Color(0xF0EEE9));
-        t.setBackground(Theme.SURFACE);
-        t.setForeground(Theme.INK);
-        t.setSelectionBackground(Theme.TINT);
-        t.setSelectionForeground(Theme.INK);
         t.setDefaultRenderer(Object.class, cell(SwingConstants.LEFT, false));
         t.setDefaultRenderer(String.class, cell(SwingConstants.LEFT, false));
         t.setDefaultRenderer(Number.class, cell(SwingConstants.RIGHT, false));
+        // Hover wash on the row under the cursor (subordinate to selection).
+        t.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(java.awt.event.MouseEvent e) {
+                markHover(t, t.rowAtPoint(e.getPoint()));
+            }
+        });
+        t.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                markHover(t, -1);
+            }
+        });
         JTableHeader h = t.getTableHeader();
         h.setReorderingAllowed(false);
         h.setPreferredSize(new Dimension(0, 34));
         h.setDefaultRenderer(new HeaderRenderer());
+    }
+
+    private static void markHover(JTable t, int row) {
+        Integer prev = (Integer) t.getClientProperty("qn.hoverRow");
+        if (prev == null ? row != -1 : prev != row) {
+            t.putClientProperty("qn.hoverRow", row);
+            t.repaint();
+        }
+    }
+
+    /** Sets a scroll viewport's background from a token, registered for retheme. */
+    public static JScrollPane viewport(JScrollPane sp, String tokenName) {
+        sp.putClientProperty("qn.viewport", tokenName);
+        if (sp.getViewport() != null) {
+            sp.getViewport().setBackground(token(tokenName));
+        }
+        return sp;
+    }
+
+    /** Re-applies token-driven table colours (used by styleTable + retheme). */
+    private static void applyTableColors(JTable t) {
+        t.setBackground(Theme.ROW_A);
+        t.setForeground(Theme.INK);
+        t.setSelectionBackground(Theme.TINT);
+        t.setSelectionForeground(Theme.INK);
+        t.setGridColor(Theme.GRID);
+        JTableHeader h = t.getTableHeader();
+        if (h != null) {
+            h.repaint();
+        }
     }
 
     /** Convenience: shared table presentation wrapped in a borderless scroll pane. */
@@ -225,7 +553,8 @@ public final class Ui {
         styleTable(t);
         JScrollPane sp = new JScrollPane(t);
         sp.setBorder(BorderFactory.createEmptyBorder());
-        sp.getViewport().setBackground(Theme.SURFACE);
+        sp.putClientProperty("qn.viewport", "ROW_A");
+        sp.getViewport().setBackground(Theme.ROW_A);
         return sp;
     }
 
@@ -260,15 +589,31 @@ public final class Ui {
                     boolean sel, boolean foc, int r, int c) {
                 super.getTableCellRendererComponent(t, v, sel, false, r, c);
                 setHorizontalAlignment(align);
-                setBorder(new EmptyBorder(0, Theme.M, 0, Theme.M));
+                // Selected rows carry a 3px accent bar on their first cell:
+                // a positional (non-colour) cue that survives greyscale
+                // perception and any wash colour. Alternating rows stripe.
+                if (sel && c == 0) {
+                    setBorder(BorderFactory.createCompoundBorder(
+                            BorderFactory.createMatteBorder(0, 3, 0, 0,
+                                    Theme.ACCENT),
+                            new EmptyBorder(0, Theme.M - 3, 0, Theme.M)));
+                } else {
+                    setBorder(new EmptyBorder(0, Theme.M, 0, Theme.M));
+                }
                 if (dot && v != null) {
-                    String hex = String.format("#%06X",
-                            Theme.difficulty(v.toString()).getRGB() & 0xFFFFFF);
-                    setText("<html><font color='" + hex + "'>&#9679;</font>&nbsp; "
+                    setText("<html><font color='" + Theme.hex(
+                            Theme.difficulty(v.toString())) + "'>&#9679;</font>&nbsp; "
                             + v + "</html>");
                 }
-                if (!sel) {
-                    setBackground(Theme.SURFACE);
+                if (sel) {
+                    setBackground(Theme.TINT);
+                } else {
+                    Integer hover = (Integer) t.getClientProperty("qn.hoverRow");
+                    if (hover != null && hover == r) {
+                        setBackground(Theme.HOVER);
+                    } else {
+                        setBackground((r & 1) == 1 ? Theme.ROW_B : Theme.ROW_A);
+                    }
                 }
                 if (v != null) {
                     String s = v.toString();

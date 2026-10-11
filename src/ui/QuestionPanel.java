@@ -108,7 +108,7 @@ public class QuestionPanel extends JPanel {
 
     public QuestionPanel() {
         setLayout(new BorderLayout(0, Theme.L));
-        setBackground(Theme.BG);
+        Ui.bg(this, "BG");
 
         addButton.addActionListener(e -> onAdd());
         clearAllButton.addActionListener(e -> onClearAll());
@@ -320,7 +320,7 @@ public class QuestionPanel extends JPanel {
         answer.setOpaque(false);
         answer.setBorder(new EmptyBorder(Theme.S, Theme.M, Theme.S, Theme.M));
         JLabel answerTitle = Ui.bold("Answer");
-        answerTitle.setForeground(Theme.ACCENT_D);
+        Ui.fg(answerTitle, "ACCENT_D");
         answer.add(answerTitle, BorderLayout.NORTH);
         answer.add(detailAnswer, BorderLayout.CENTER);
 

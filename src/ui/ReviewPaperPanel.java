@@ -90,7 +90,7 @@ public class ReviewPaperPanel extends JPanel {
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
         titleLabel.putClientProperty("FlatLaf.style", "font:+7 bold");
-        titleLabel.setForeground(Theme.INK);
+        Ui.fg(titleLabel, "INK");
         statusLabel.setBorder(new EmptyBorder(0, Theme.M, 0, Theme.M));
         header.add(titleLabel, BorderLayout.WEST);
         header.add(statusLabel, BorderLayout.EAST);
@@ -118,7 +118,7 @@ public class ReviewPaperPanel extends JPanel {
         questionArea.setWrapStyleWord(true);
         answerArea.setLineWrap(true);
         answerArea.setWrapStyleWord(true);
-        detailInfoLabel.setForeground(Theme.MUTED);
+        Ui.fg(detailInfoLabel, "MUTED");
 
         JPanel detail = new JPanel(new GridBagLayout());
         detail.setOpaque(false);
@@ -655,18 +655,18 @@ public class ReviewPaperPanel extends JPanel {
         if (review.isFinalized()) {
             statusLabel.setText("FINALIZED - Paper ID " + review.getPaperId()
                     + " (read-only)");
-            statusLabel.setForeground(Theme.MUTED);
+            Ui.fg(statusLabel, "MUTED");
             statusLabel.setToolTipText("This paper is saved and can no longer change.");
             return;
         }
         List<String> errors = reviewService.validate(review);
         if (errors.isEmpty()) {
             statusLabel.setText("VALID - ready to finalize");
-            statusLabel.setForeground(Theme.OK);
+            Ui.fg(statusLabel, "OK");
             statusLabel.setToolTipText(null);
         } else {
             statusLabel.setText("INVALID - " + errors.size() + " problem(s)");
-            statusLabel.setForeground(Theme.BAD);
+            Ui.fg(statusLabel, "BAD");
             StringBuilder tip = new StringBuilder();
             for (String error : errors) {
                 tip.append("- ").append(error).append('\n');

@@ -32,6 +32,11 @@ reports SUCCESS, so MySQL is reachable right now.
 Run a test suite the same way, e.g.:
 `java -classpath "build;lib/*" QuestionCrudTest`
 
+The app icon lives at `resources/Orbiting Quiz Sheet Icon.png` and is
+loaded from the classpath (`/resources/...`) by `ui.Branding`; when
+compiling, copy `resources/` into `build/resources/` so the classpath
+lookup finds it. `Branding.source()` reports which loader path won.
+
 ## 3. Architecture
 
 ```
@@ -55,6 +60,7 @@ src/
     MainFrame        AppShell sidebar host, refresh-on-enter, Ctrl+1..5
     Theme            design tokens + FlatLaf install (replaces UiTheme)
     Ui               reusable components: buttons, cards, tables, Meter
+    Branding         window/sidebar icon loader (classpath-first) + title
     AppShell         light sidebar (groups Content/Papers, badges, status)
     SubjectPanel     subjects + modules CRUD (master-detail)
     QuestionPanel    question bank: live filters, master-detail
@@ -98,40 +104,43 @@ Test suites create their own `TEST ...` fixtures and clean them up.
 
 ## 5. Git state
 
-Branch: `fix/blueprint-ui-regressions` (checked out)
-Remote: origin configured, nothing pushed.
+Branch: `main` @ `cacc2b4` (merge of the GitHub initial commit).
+Remote: origin configured, nothing pushed from this session.
 
 ```
-main                    c2aa087  pre-redesign baseline (untouched)
-backup/pre-ui-redesign  c2aa087  safety copy
-ui/redesign             77f2b22  redesign head
-backup/pre-blueprint-fix 77f2b22 recovery point
-fix/blueprint-ui-regressions 6051d75  current work branch (HEAD)
+main                    cacc2b4  current HEAD (redesign merged)
+ba69409                 ui: quest design restyle (AppShell, Theme/Ui, cards)
+6051d75                 docs: final A-M regression repair report
 ```
 
-Work already committed on this branch: pattern-selection repair,
-accessibility/ergonomics pass, dialog safety defaults, review/history
-polish, blueprint redesign, richer palette, and the acceptance docs.
+Earlier pre-redesign history (`c2aa087`, `77f2b22`, `fix/blueprint-ui-regressions`)
+is already merged; those branch names no longer need checking out.
 
 ### UNCOMMITTED changes (in the working tree right now)
 
-The full `questDesign` Quest restyle (see section 7 item 1) — ALL of
-`src/ui/` except service/dao/model code:
+The Quest Nova branding + palette pass PLUS the dark-mode + accent
+system (section 7 items 2 and 4), presentation only:
 
-- NEW: `Theme.java`, `Ui.java`, `AppShell.java`
-- REWRITTEN: `MainFrame.java` (AppShell host), `SubjectPanel`,
-  `QuestionPanel`, `ImportPanel`, `GeneratePaperPanel`,
-  `GeneratedPapersPanel`, `ReviewPaperPanel`
-- DELETED: `UiTheme.java` (alias facade removed once last caller went;
-  `MainFrame` now calls `Theme.install()`)
-- `QuestionDeleteConfirm.java` and `ReviewPaperDialog.java` unchanged
-  (JOptionPane-based / thin host — already theme-compliant)
+- MODIFIED: `src/ui/Theme.java` (mutable appearance x accent tokens,
+  prefs persistence, FlatLaf re-setup), `Ui.java` (qn.* registry,
+  retheme walker, cell renderer with zebra + hover, viewport helper,
+  btnStyle kinds), `AppShell.java` (sidebar footer: Light/Dark toggle
+  + accent switcher, refreshTheme), `MainFrame.java` (theme listener
+  wiring, current-screen tracking), `GeneratePaperPanel.java` (JSplitPane
+  layout + collapsible Paper preview card), `GeneratedPapersPanel.java`,
+  `QuestionPanel.java`, `ImportPanel.java`, `ReviewPaperPanel.java`,
+  `SubjectPanel.java` (eager setForeground/setBackground -> Ui.fg/bg)
+- NEW: `src/ui/Branding.java` (class-path icon loader with `source()`)
+- NEW: `src/ThemeSystemTest.java` (358 checks: token completeness,
+  6-combo contrast, prefs round-trip + invalid fallback, zebra/selection/
+  hover precedence, form preservation, accent/appearance independence)
+- NEW: `resources/Orbiting Quiz Sheet Icon.png` (shipped icon asset)
 
-All 18 test suites pass on this tree (679 assertions, 0 failed).
-Verified: WCAG contrast 19/19 palette pairs >= 4.5:1; offscreen
-screenshots of all 5 screens at 1000x640 and 1400x900 show no clipping
-(question-bank/papers tables scroll horizontally at 1000px by design).
-NOT yet committed — ask the user before committing.
+Full verification of this tree: `run-regress.ps1 -Tag darkmode2`
+**1019 passed / 0 failed / REGRESSION_GREEN** (19 suites including the
+new ThemeSystemTest); `javac` exit 0; 20 offscreen screenshots
+inspected (dark-plum + light-green, 5 screens x 1000x640 + 1400x900);
+live app launched. NOT committed — ask the user before committing.
 
 ## 6. Prior session deliverables (evidence in artifacts/)
 
@@ -162,7 +171,9 @@ Temporary harnesses from that session (`ReproBlueprintFlow`,
      cards instead of `TitledBorder`, pinned action bars
    - Removed: `Validate Blueprint` button (+ dead `onValidate`),
      every `Derived Blueprint Preview` string, the `UiTheme` class
-   - Done-when evidence: 18 suites 679/0 green; no forbidden strings
+   - Done-when evidence: 18 suites green (the "679" figure quoted here
+     was wrong; the recorded baseline is 661 — see section 5); no
+     forbidden strings
      left (`grep` clean); 19/19 contrast pairs pass 4.5:1; offscreen
      screenshots of all 5 screens at 1000x640 + 1400x900 show no
      clipping (dense tables scroll horizontally at 1000px by design)
@@ -173,18 +184,137 @@ Temporary harnesses from that session (`ReproBlueprintFlow`,
      the scroll pane" applied to its shorter 2-card layout. Header,
      meter, preview and actions stay pinned.
 
-2. **RESOLVED (probably) — "the db is not connected, therefore the
+2. **DONE (2026-10-10 later) — Quest Nova branding + global palette
+   refinement** (the `/nova` run; presentation only):
+
+   - Rebranded: window title `Quest Nova — Question Paper Generator`,
+     sidebar brand block (shipped icon + "Quest Nova"), dialog text.
+     Icon ships in `resources/`, loads from the build classpath via
+     `ui.Branding` (verified `SOURCE=classpath`, not the file fallback).
+   - Palette: `Theme` remapped to the cool surface-hierarchy scheme
+     (BG `#F1F5F8`, SIDE `#E8EEF3`, SURFACE `#FFFFFF`, HEAD_BG
+     `#E1EAF0`, ACCENT `#0F766E`, WARN darkened to `#855C11`, new
+     `GRID`/`SIDE`/`ACCENT_P` tokens). Contrast audit: 52/52 measured
+     pairs pass, 7 documented exceptions (decorative separators, state
+     tints paired with the accent bar, etc.).
+   - Non-color selection indicator: 3px accent left-bar on the first
+     cell of selected rows (`Ui.cell`).
+   - Two real defects found during screenshot QA and fixed:
+     (a) `GeneratedPapersPanel` detail rows overlapped because
+     `GridBagConstraints.gridy` defaults to RELATIVE (-1) and the grid
+     never pinned row 0 — now `g.gridy = 0` + a value-column gap;
+     (b) card headers painted the title over the actions at ~1000px —
+     `Ui.card` title moved WEST->CENTER and `Ui.bold` now returns an
+     ellipsizing `TruncLabel`.
+   - Verified: 661/0 REGRESSION_GREEN, 10 screenshots re-inspected,
+     live launch shows title/icon/brand correctly.
+
+3. **RESOLVED (probably) — "the db is not connected, therefore the
    imported question bank is not showing up in the db."** At the time
    it was reported, `MainFrame.launch()` showed a one-time MySQL warning
    dialog. `ConnectionTest` now returns SUCCESS, so MySQL is up. If the
    user still reports missing imported questions, re-verify by
    re-importing and checking row counts, rather than assuming.
 
+4. **DONE (2026-10-10 latest) — Dark mode + accent schemes + sidebar
+   toggle + blueprint layout fix** (the `/nova` run; presentation only):
+
+   - Two independent axes in `Theme`: `Appearance{LIGHT,DARK}` ×
+     `Accent{GREEN,GRAPHITE,PLUM}`; `Theme.set(a, c)` reassigns every
+     token, re-runs FlatLaf setup, refreshes open windows and notifies
+     an apply listener. Static initialiser seeds LIGHT/GREEN so early
+     reads never see null colours (fixes a smoke-suite NPE regression).
+   - Dark tokens per spec: BG `#1D232B`, SIDE `#0E141C` (darkened from
+     the stated `#171F29` — it failed the sidebar-edge contrast check at
+     1.05:1; now 1.17:1), SURFACE `#252D37`, INPUT `#1B222A`, INK
+     `#F1F4F8`, MUTED `#B0BAC6`, LINE `#36414E`, plus OK/WARN/BAD
+     `#58C99A`/`#F0BF69`/`#FF8585`. Light SIDE likewise darkened to
+     `#DCE5EE` (1.16:1 vs BG).
+   - Accents: Green `#42B883`/`#0F766E`, Graphite `#A3AFBF`/`#475467`,
+     Plum `#B99AE8`/`#6F4E9E` (dark/light); ACCENT_FG near-black on
+     dark fills for button-text contrast.
+   - Persistence: `java.util.prefs` node `/quest-nova`, keys
+     `appearance`/`accent`; invalid values fall back to LIGHT/GREEN;
+     no DB involvement.
+   - Sidebar footer (bottom-left, below nav): Light/Dark toggle +
+     accent cycler ("green accent" -> "graphite" -> "plum"). Accessible
+     names + tooltips; `AppShell.refreshTheme()` re-applies borders and
+     footer labels after a switch.
+   - `Ui.fg`/`Ui.bg`/`Ui.viewport`/`Ui.applyButtonStyle` register
+     `qn.*` client properties; `Ui.retheme` walks the tree on theme
+     change. All eager `setForeground(Theme.*)` sites across 6 panels
+     converted. Renderers already read Theme at paint time.
+   - Zebra: renderer precedence selection(TINT) -> hover(HOVER) ->
+     ROW_A/ROW_B; hover tracked via `qn.hoverRow`.
+   - Blueprint: replaced the mid/south BorderLayout with a vertical
+     `JSplitPane` (resizeWeight 0.62, continuous layout) and a
+     collapsible "Paper preview" card (Collapse/Expand button in the
+     card header); divider initialised after first layout. Values in
+     the A-E form are untouched by resizes or collapse.
+   - New suite `ThemeSystemTest` (358 checks) registered in
+     `run-regress.ps1`; final run: **1019 passed / 0 failed across 19
+     suites**; 20 screenshots inspected (dark-plum + light-green,
+     5 screens × 1000x640 + 1400x900); live app launched.
+   - Deviations from spec: no "System Default" appearance option (the
+     toggle is binary per the mandatory-placement wording); accent
+     switcher is a button (cycle) rather than a picker menu; dark
+     SIDE darkened for contrast as noted above.
+
+5. **DONE (2026-10-11) — Light Mode colour correction** (Dark Mode
+   frozen; presentation only):
+
+   - Root cause of "components still show Dark colours after switch":
+     FlatLaf UI delegates cache `background` at install time;
+     `updateComponentTreeUI` does NOT re-read UIManager for
+     already-constructed components (proved by `ThemeSwitchProbe`:
+     UIManager values update correctly but component fields keep the
+     old dark colour).
+   - Fix: `Ui.rethemeOne()` fallback — for unregistered components of
+     known types (JPanel, JComboBox, JSpinner, JTextField/TextArea/
+     FormattedTextField, JCheckBox, JRadioButton, JList, JTableHeader,
+     JToolTip) reset background/foreground from live UIManager values.
+     Guards skip `qn.bg`/`qn.card`/`qn.btn`/`qn.table` owners. Not
+     gated on `isOpaque()` (FlatLaf inputs report false but carry a
+     stale field). Plain JScrollPane viewports (no `qn.viewport`) get
+     `List.background`/`Panel.background` reset too.
+   - Light tokens (reference palette, CTRL_LINE corrected for 3:1):
+     BG `#F7F8FA`, SIDE `#E1E7F0` (darkened from reference `#E8EDF2`
+     to clear the 1.15:1 sidebar-edge check; now 1.17:1), SURFACE/
+     INPUT white, INK `#202833`, MUTED `#526071`, LINE `#D6DDE5`
+     (decorative), CTRL_LINE `#8A94A6` (interactive borders, ~3.1:1
+     on white), HEAD_BG `#E8EDF2`, ROW_A white, ROW_B `#F3F6F9`,
+     GRID `#D6DDE5`, HOVER `#E8EDF3`, TRACK `#E8EDF2`, OK `#18794E`,
+     WARN `#946200`, BAD `#B42318`, TINT_IDLE `#E8EDF2`, DISABLED_FG
+     `#687586`, FOCUS `#2563EB`. Dark tokens untouched.
+   - `applyDefaults()` expanded with verified FlatLaf 3.7.2 keys
+     (checked against jar properties): ToolTip, PopupMenu, CheckBox,
+     RadioButton, Spinner (+editor), FormattedTextField, ComboBox
+     buttonBackground, ScrollBar thumb/track, Component/Button
+     disabled backgrounds+foregrounds, Panel/TextField/ComboBox/
+     Spinner foregrounds.
+   - Screenshot QA found and fixed two additional stale-colour
+     defects: (a) `Ui.pageHeader` title was a plain JLabel with eager
+     `setForeground(Theme.INK)` and no `qn.fg` registration — now
+     uses `fg(t, "INK")`; (b) blueprint syllabus `JList`s inside plain
+     `JScrollPane`s kept dark backgrounds — fixed by the JList +
+     viewport fallback above.
+   - Verified: `ThemeSwitchProbe` stale_count=0 across repeated
+     Dark→Light→Dark→Light transitions (disabled controls, dropdowns,
+     tables, already-constructed components); `ThemeSystemTest` 358/0;
+     full regression **1019 passed / 0 failed across 19 suites**;
+     31 screenshots inspected (light-green + dark-green + live
+     dark→light switch shots, 5 screens × 1000x640 + 1400x900);
+     live app launched (PID 23456, stayed up, stopped cleanly).
+   - Not manually verified in the live app (offscreen harness only):
+     clicking the sidebar Light/Dark toggle by hand, prefs persistence
+     across a real restart, and end-to-end Excel import / PDF export
+     click-throughs (covered by the 19-suite regression instead).
+
 ## 8. Housekeeping notes
 
 - Stray untracked files at repo root, all safe to delete if the user
   agrees: `baseline_uiTheme.txt`, `build_errors.txt`, `diff_baseline.txt`,
-  `errors.txt`, `stage11_output.txt`, `s10_export.png`, `srcfiles.txt`
+  `errors.txt`, `stage11_output.txt`
 - `build_errors.txt` is STALE: it references a sidebar-based MainFrame
   (`btnSubjects`, `javax.BoxLayout`) that does not exist in the current
   source. Ignore it.
@@ -200,6 +330,37 @@ Temporary harnesses from that session (`ReproBlueprintFlow`,
 
 ## 9. Changelog
 
+- 2026-10-11 — Light Mode colour correction (Dark Mode frozen):
+  root-caused stale FlatLaf delegate colours (UIManager updates but
+  component fields don't), added `Ui.rethemeOne` UIManager fallback for
+  unregistered component types + plain JScrollPane viewports, light
+  tokens aligned to reference palette (CTRL_LINE `#8A94A6` for 3:1,
+  SIDE `#E1E7F0` for sidebar-edge 1.17:1), `applyDefaults` expanded
+  with verified FlatLaf 3.7.2 keys (tooltip/popup/check/radio/spinner/
+  scrollbar/disabled), fixed stale `pageHeader` title and syllabus
+  JLists via screenshot QA. Verified: `ThemeSwitchProbe` 4×transition
+  stale_count=0, `ThemeSystemTest` 358/0, **1019/0 REGRESSION_GREEN
+  (19 suites)**, 31 screenshots inspected (light-green, dark-green,
+  live dark→light switch), live launch. Uncommitted on `main`.
+- 2026-10-10 (latest) — Dark mode + accent schemes + sidebar toggle +
+  blueprint split-pane: `Theme` appearance×accent token system with
+  `java.util.prefs` persistence, `Ui` qn.* retheme registry + zebra/hover
+  renderer, AppShell footer (Light/Dark + accent cycler), eager-colour
+  retrofit across 6 panels, GeneratePaperPanel JSplitPane with
+  collapsible preview, `ThemeSystemTest` (358 checks). Verified:
+  build exit 0, 1019/0 REGRESSION_GREEN (19 suites), 20 screenshots
+  inspected (dark-plum + light-green), live launch. Uncommitted on
+  `main`.
+- 2026-10-10 (nova run) — Quest Nova branding + global palette pass:
+  shipped icon (`resources/`, classpath-first `ui.Branding`), window/
+  sidebar/dialog retitle, `Theme` cool-surface remap + contrast audit
+  (52/52 measured, 7 documented exceptions), non-color selection bar,
+  section struts in GeneratePaperPanel. Screenshot QA found and fixed
+  two real defects (gridy RELATIVE overlap in the papers detail pane;
+  card-title/actions overlap at 1000px). Verified: build exit 0,
+  661/0 REGRESSION_GREEN (corrected the stale "679" figure), 10
+  screenshots re-inspected, live launch verified. All uncommitted on
+  `main`.
 - 2026-10-10 (later) — Finished the questDesign implementation: restyled
   GeneratePaperPanel (Meter, pinned action bar, Validate button removed),
   ReviewPaperPanel, fixed table column collapse at 1000px (AUTO_RESIZE_OFF

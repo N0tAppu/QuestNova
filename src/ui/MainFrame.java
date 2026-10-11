@@ -38,8 +38,15 @@ public class MainFrame extends JFrame {
 
     private final AppShell shell = new AppShell();
 
+    /** Index of the screen currently shown (drives the theme refresh). */
+    private int currentScreenIndex;
+
     public MainFrame() {
-        setTitle("Question Paper Generator");
+        setTitle("Quest Nova — Question Paper Generator");
+        java.util.List<java.awt.Image> icons = Branding.windowIcons();
+        if (!icons.isEmpty()) {
+            setIconImages(icons);
+        }
         setSize(1000, 640);
         setMinimumSize(new java.awt.Dimension(1000, 640));
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -56,6 +63,14 @@ public class MainFrame extends JFrame {
 
         setContentPane(shell);
         shell.bindShortcuts();
+
+        // After a live theme switch: restyle the shell + reload the current
+        // screen so eagerly-tinted labels pick up the new tokens. Form
+        // values and selections are preserved (no component is rebuilt).
+        Theme.setApplyListener(() -> {
+            shell.refreshTheme();
+            refreshScreen(currentScreenIndex);
+        });
     }
 
     /** Refreshes the screen that just became visible, then focuses it. */
@@ -107,6 +122,7 @@ public class MainFrame extends JFrame {
 
     /** Refreshes the screen that is becoming visible. */
     private void refreshScreen(int screenIndex) {
+        currentScreenIndex = screenIndex;
         switch (screenIndex) {
             case 0:
                 subjectPanel.refreshIfChanged();
@@ -146,7 +162,7 @@ public class MainFrame extends JFrame {
             // connected - silent
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(null,
-                    "Question Paper Generator could not connect to MySQL.\n\n"
+                    "Quest Nova could not connect to MySQL.\n\n"
                     + "Please start MySQL (for example through XAMPP) and then use the\n"
                     + "navigation to load the data again.\n"
                     + "The application will open, but it cannot show any data until the\n"

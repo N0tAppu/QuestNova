@@ -357,6 +357,9 @@ public class GeneratedPapersPanel extends JPanel {
         GridBagConstraints g = new GridBagConstraints();
         g.anchor = GridBagConstraints.NORTHWEST;
         g.insets = new Insets(0, 0, Theme.S, 0);
+        // GridBagConstraints.gridy defaults to RELATIVE (-1); pin the first
+        // row or the whole grid shifts up and the top rows overlap.
+        g.gridy = 0;
         addDetailRow(list, g, "Subject", detailSubject);
         addDetailRow(list, g, "Total marks", detailMarks);
         addDetailRow(list, g, "Questions", detailQuestions);
@@ -380,17 +383,20 @@ public class GeneratedPapersPanel extends JPanel {
         g.gridx = 0;
         g.weightx = 0;
         g.fill = GridBagConstraints.NONE;
+        // Right inset on the label reserves the gap before the value column.
+        g.insets = new Insets(0, 0, Theme.S, Theme.S);
         list.add(Ui.muted(label), g);
         g.gridx = 1;
         g.weightx = 1;
         g.fill = GridBagConstraints.HORIZONTAL;
+        g.insets = new Insets(0, 0, 0, 0);
         list.add(value, g);
         g.gridy++;
     }
 
     private static JLabel detailValue() {
         JLabel value = new JLabel();
-        value.setForeground(Theme.INK);
+        Ui.fg(value, "INK");
         return value;
     }
 

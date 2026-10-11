@@ -85,9 +85,9 @@ public class ImportPanel extends JPanel {
                 BorderLayout.NORTH);
 
         checkArea.add(idleLabel, BorderLayout.CENTER);
-        summaryPanel.setBackground(Theme.OK_BG);
+        Ui.bg(summaryPanel, "OK_BG");
         summaryPanel.setBorder(new EmptyBorder(Theme.S, Theme.M, Theme.S, Theme.M));
-        checkSummaryLabel.setForeground(Theme.OK);
+        Ui.fg(checkSummaryLabel, "OK");
         summaryPanel.add(checkSummaryLabel, BorderLayout.CENTER);
 
         JButton chooseButton = Ui.plain("Choose file (.xlsx)");
@@ -191,7 +191,7 @@ public class ImportPanel extends JPanel {
     private static JLabel stepBadge(int number) {
         JLabel badge = new JLabel(String.valueOf(number), SwingConstants.CENTER);
         badge.setOpaque(false);
-        badge.setForeground(Theme.ACCENT_D);
+        Ui.fg(badge, "ACCENT_D");
         badge.putClientProperty("FlatLaf.style", "font:bold");
         badge.setPreferredSize(new Dimension(Theme.XL, Theme.XL));
         badge.setMinimumSize(new Dimension(Theme.XL, Theme.XL));
@@ -263,7 +263,7 @@ public class ImportPanel extends JPanel {
                 super.getTableCellRendererComponent(table, value, false, false, row, column);
                 setHorizontalAlignment(align);
                 setForeground(Theme.MUTED);
-                setBackground(Theme.SURFACE);
+                setBackground(Theme.ROW_A);
                 setBorder(new EmptyBorder(0, Theme.M, 0, Theme.M));
                 return this;
             }
@@ -376,7 +376,7 @@ public class ImportPanel extends JPanel {
             }
             chosenFile = f;
             fileLabel.setText(f.getName());
-            fileLabel.setForeground(Theme.INK);
+            Ui.fg(fileLabel, "INK");
             updateImportButtonState();
         }
     }
