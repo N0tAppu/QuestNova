@@ -111,7 +111,7 @@ public class ExcelImportTest {
                     new String[][]{
                             {"", "Some answer", "Module 1", "2", "Easy"},          // 2: empty question
                             {"What is X?", "", "Module 1", "2", "Easy"},           // 3: empty answer
-                            {"What is Y?", "A", "Module 99", "2", "Easy"},         // 4: nonexistent module
+                            {"What is Y?", "A", "", "2", "Easy"},                  // 4: empty module
                             {"What is Z?", "A", "Module 1", "0", "Easy"},          // 5: marks = 0
                             {"What is W?", "A", "Module 1", "abc", "Easy"},        // 5: marks non-numeric
                             {"What is V?", "A", "Module 1", "-4", "Easy"},         // 5: negative marks
@@ -124,7 +124,7 @@ public class ExcelImportTest {
                     r.getTotalRows() == 9 && r.getValidCount() == 0 && r.getInvalidCount() == 9);
             check("T2: empty question error", hasError(r, "Question is empty"));
             check("T3: empty answer error", hasError(r, "Answer is empty"));
-            check("T4: nonexistent module error", hasError(r, "does not exist for the selected subject"));
+            check("T4: empty module error", hasError(r, "Module is empty"));
             check("T5: invalid marks errors (0/abc/-4/2.5)", countErrors(r, "Invalid marks") == 4);
             check("T6: invalid difficulty errors (1 invalid value + 1 empty)",
                     countErrors(r, "ifficulty") == 2);
@@ -153,28 +153,30 @@ public class ExcelImportTest {
                     new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
                     new String[][]{
                             {"Mixed valid one.", "A", "Module 1", "2", "Easy"},
-                            {"", "B", "Module 1", "4", "Easy"},                 // invalid
+                            {"", "B", "Module 1", "4", "Easy"},                 // invalid: empty question
                             {"Mixed valid two.", "C", "Module 2", "6", "Medium"},
-                            {"D", "E", "Module 404", "2", "Hard"},              // invalid
+                            {"D", "E", "New Module 404", "2", "Hard"},         // valid: new module auto-created
                             {"Mixed valid three.", "F", "Module 1", "8", "Hard"}
                     });
             r = importService.validate(mixedFile, subjectId);
-            check("T9: mixed file - 5 total / 3 valid / 2 invalid",
-                    r.getTotalRows() == 5 && r.getValidCount() == 3 && r.getInvalidCount() == 2);
+            check("T9: mixed file - 5 total / 4 valid / 1 invalid",
+                    r.getTotalRows() == 5 && r.getValidCount() == 4 && r.getInvalidCount() == 1);
             check("T9: mixed file - not allValid", !r.allValid() && r.anyValid());
             check("T9: summary contains counts",
                     r.summaryText().contains("Total rows: 5")
-                            && r.summaryText().contains("Valid: 3")
-                            && r.summaryText().contains("Invalid: 2"));
+                            && r.summaryText().contains("Valid: 4")
+                            && r.summaryText().contains("Invalid: 1"));
 
             // =========================================================
             // 10. IMPORT VALID ROWS ONLY
             // =========================================================
             int beforeMixed = countQuestions(subjectId);
             imported = importService.importValidRows(r);
-            check("T10: Import Valid Rows Only inserts exactly 3", imported == 3);
-            check("T10: DB increased by exactly 3 (invalid never inserted)",
-                    countQuestions(subjectId) == beforeMixed + 3);
+            check("T10: Import Valid Rows Only inserts exactly 4", imported == 4);
+            check("T10: DB increased by exactly 4 (invalid never inserted)",
+                    countQuestions(subjectId) == beforeMixed + 4);
+            check("T10: new module 'New Module 404' was auto-created",
+                    moduleExists(subjectId, "New Module 404"));
 
             // =========================================================
             // HEADER VALIDATION
@@ -185,7 +187,7 @@ public class ExcelImportTest {
             r = importService.validate(badHeaders, subjectId);
             check("Headers: wrong header rejected", !r.isHeaderValid()
                     && r.getHeaderError() != null);
-            check("Headers: wrong header inserts nothing", countQuestions(subjectId) == beforeMixed + 3);
+            check("Headers: wrong header inserts nothing", countQuestions(subjectId) == beforeMixed + 4);
 
             // =========================================================
             // 12. DOWNLOADABLE TEMPLATE
@@ -237,7 +239,7 @@ public class ExcelImportTest {
                     questionService.deleteQuestions(mr.getMatched());
             check("T14: the 2 matched questions are deleted",
                     fromFile.getDeleted() == 2 && fromFile.getKept().isEmpty());
-            check("T14: subject 1 now has 4 questions", countQuestions(subjectId) == 4);
+            check("T14: subject 1 now has 5 questions", countQuestions(subjectId) == 5);
             check("T14: the same text in the other subject is untouched",
                     countQuestions(subject2Id) == 1);
 
@@ -246,10 +248,217 @@ public class ExcelImportTest {
             // =========================================================
             QuestionService.BulkDeleteResult cleared =
                     questionService.deleteAllForSubject(subjectId);
-            check("T15: clearing removes the remaining 4 questions",
-                    cleared.getDeleted() == 4 && countQuestions(subjectId) == 0);
+            check("T15: clearing removes the remaining 5 questions",
+                    cleared.getDeleted() == 5 && countQuestions(subjectId) == 0);
             check("T15: the other subject keeps its question",
                     countQuestions(subject2Id) == 1);
+
+            // =========================================================
+            // MODULE AUTO-CREATION (M1-M12)
+            // =========================================================
+
+            // M1: all modules already exist
+            File m1File = write("m1.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M1 question A.", "Ans A", "Module 1", "2", "Easy"},
+                            {"M1 question B.", "Ans B", "Module 2", "4", "Medium"}
+                    });
+            r = importService.validate(m1File, subjectId);
+            check("M1: all modules exist - 0 new modules",
+                    r.getNewModules().isEmpty() && r.getExistingModules().size() == 2);
+            imported = importService.importValidRows(r);
+            check("M1: import succeeds, 2 questions", imported == 2);
+            check("M1: no modules created", r.getModulesCreated().isEmpty());
+
+            // M2: all modules are new
+            File m2File = write("m2.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M2 question A.", "Ans A", "Brand New Alpha", "2", "Easy"},
+                            {"M2 question B.", "Ans B", "Brand New Beta", "4", "Medium"}
+                    });
+            r = importService.validate(m2File, subjectId);
+            check("M2: all new - 2 new modules discovered",
+                    r.getNewModules().size() == 2 && r.getExistingModules().isEmpty());
+            imported = importService.importValidRows(r);
+            check("M2: import succeeds, 2 questions", imported == 2);
+            check("M2: both new modules created",
+                    r.getModulesCreated().size() == 2
+                            && moduleExists(subjectId, "Brand New Alpha")
+                            && moduleExists(subjectId, "Brand New Beta"));
+
+            // M3: mixed existing + new
+            File m3File = write("m3.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M3 question A.", "Ans A", "Module 1", "2", "Easy"},
+                            {"M3 question B.", "Ans B", "Mixed New Gamma", "4", "Medium"}
+                    });
+            r = importService.validate(m3File, subjectId);
+            check("M3: mixed - 1 existing + 1 new",
+                    r.getExistingModules().size() == 1 && r.getNewModules().size() == 1
+                            && r.getNewModules().get(0).equals("Mixed New Gamma"));
+            imported = importService.importValidRows(r);
+            check("M3: import succeeds", imported == 2);
+            check("M3: new module created, existing reused",
+                    r.getModulesCreated().size() == 1
+                            && moduleExists(subjectId, "Mixed New Gamma"));
+
+            // M4: repeated module names across many rows
+            File m4File = write("m4.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M4 q1.", "A", "Repeated Mod", "2", "Easy"},
+                            {"M4 q2.", "B", "Repeated Mod", "4", "Medium"},
+                            {"M4 q3.", "C", "Repeated Mod", "6", "Hard"},
+                            {"M4 q4.", "D", "Repeated Mod", "8", "Hard"},
+                            {"M4 q5.", "E", "Repeated Mod", "2", "Easy"}
+                    });
+            r = importService.validate(m4File, subjectId);
+            check("M4: repeated name counted once as distinct",
+                    r.getDistinctModules().size() == 1
+                            && r.getNewModules().size() == 1);
+            check("M4: question count per module = 5",
+                    r.getModuleQuestionCounts().getOrDefault("Repeated Mod", 0) == 5);
+            imported = importService.importValidRows(r);
+            check("M4: 5 questions imported", imported == 5);
+            check("M4: only one module created despite 5 rows",
+                    countModulesNamed(subjectId, "Repeated Mod") == 1);
+
+            // M5: same module name under a different subject
+            // subject2 already has "Module 1"; subject1 also has "Module 1".
+            // An import into subject1 with "Module 1" must reuse subject1's,
+            // not confuse it with subject2's.
+            File m5File = write("m5.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M5 scoped question.", "Ans", "Module 1", "2", "Easy"}
+                    });
+            r = importService.validate(m5File, subjectId);
+            check("M5: same name under other subject treated as existing for subject1",
+                    r.getExistingModules().contains("Module 1")
+                            && r.getNewModules().isEmpty());
+            imported = importService.importValidRows(r);
+            check("M5: import reuses subject1's Module 1", imported == 1);
+
+            // M6: leading/trailing whitespace in module names
+            File m6File = write("m6.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M6 padded question.", "Ans", "  Module 1  ", "2", "Easy"}
+                    });
+            r = importService.validate(m6File, subjectId);
+            check("M6: whitespace-padded name matches existing after trim",
+                    r.getExistingModules().size() == 1
+                            && r.getExistingModules().get(0).equals("Module 1"));
+            imported = importService.importValidRows(r);
+            check("M6: import succeeds with padded name", imported == 1);
+            check("M6: no duplicate module created",
+                    countModulesNamed(subjectId, "Module 1") == 1);
+
+            // M7: blank and invalid module cells
+            File m7File = write("m7.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M7 blank mod.", "Ans", "", "2", "Easy"},
+                            {"M7 long mod.", "Ans",
+                                "X".repeat(101), "2", "Easy"},
+                            {"M7 ok mod.", "Ans", "Module 2", "4", "Medium"}
+                    });
+            r = importService.validate(m7File, subjectId);
+            check("M7: blank module is an invalid row",
+                    hasError(r, "Module is empty"));
+            check("M7: >100-char module is an invalid row",
+                    hasError(r, "100 characters"));
+            check("M7: invalid module values tracked",
+                    r.getInvalidModuleValues().size() == 2);
+            check("M7: valid row with existing module still valid",
+                    r.getValidCount() == 1);
+
+            // M8: previewing and cancelling without DB writes
+            File m8File = write("m8.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M8 cancel question.", "Ans", "Cancel New Mod", "2", "Easy"}
+                    });
+            int modCountBefore = moduleService.getModulesBySubject(subjectId).size();
+            r = importService.validate(m8File, subjectId); // preview only, no import
+            check("M8: preview discovers the new module",
+                    r.getNewModules().contains("Cancel New Mod"));
+            check("M8: validate-only creates no modules",
+                    moduleService.getModulesBySubject(subjectId).size() == modCountBefore
+                            && !moduleExists(subjectId, "Cancel New Mod"));
+
+            // M9: new module with only invalid questions -> module NOT created (orphan cleanup)
+            File m9File = write("m9.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M9 bad marks.", "Ans", "Orphan Mod", "0", "Easy"},
+                            {"M9 bad diff.", "Ans", "Orphan Mod", "2", "Extreme"}
+                    });
+            r = importService.validate(m9File, subjectId);
+            check("M9: all rows invalid, module still discovered in preview",
+                    r.getInvalidCount() == 2
+                            && r.getNewModules().contains("Orphan Mod"));
+            imported = importService.importValidRows(r);
+            check("M9: nothing imported", imported == 0);
+            check("M9: orphan module NOT left behind",
+                    !moduleExists(subjectId, "Orphan Mod"));
+
+            // M10: partial import — some new-module questions valid, some not
+            File m10File = write("m10.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M10 good q1.", "Ans", "Partial New Mod", "2", "Easy"},
+                            {"M10 good q2.", "Ans", "Partial New Mod", "4", "Medium"},
+                            {"", "Ans", "Partial New Mod", "2", "Easy"}   // invalid: empty question
+                    });
+            r = importService.validate(m10File, subjectId);
+            check("M10: 2 valid + 1 invalid with new module",
+                    r.getValidCount() == 2 && r.getInvalidCount() == 1
+                            && r.getNewModules().contains("Partial New Mod"));
+            imported = importService.importValidRows(r);
+            check("M10: 2 questions imported (partial policy preserved)",
+                    imported == 2);
+            check("M10: new module created for accepted rows",
+                    moduleExists(subjectId, "Partial New Mod"));
+
+            // M11: repeated import does not duplicate modules
+            int m11ModCount = moduleService.getModulesBySubject(subjectId).size();
+            // Re-import the same file content (new question texts to avoid dup errors)
+            File m11File = write("m11.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M11 second pass q1.", "Ans", "Partial New Mod", "2", "Easy"},
+                            {"M11 second pass q2.", "Ans", "Partial New Mod", "4", "Medium"}
+                    });
+            r = importService.validate(m11File, subjectId);
+            check("M11: second import sees module as existing",
+                    r.getExistingModules().contains("Partial New Mod")
+                            && r.getNewModules().isEmpty());
+            imported = importService.importValidRows(r);
+            check("M11: 2 more questions imported", imported == 2);
+            check("M11: no duplicate module created on re-import",
+                    moduleService.getModulesBySubject(subjectId).size() == m11ModCount
+                            && countModulesNamed(subjectId, "Partial New Mod") == 1);
+
+            // M12: changing the selected subject recalculates the mapping
+            // Same file, different subject -> module is new for subject2
+            File m12File = write("m12.xlsx",
+                    new String[]{"Question", "Answer", "Module", "Marks", "Difficulty"},
+                    new String[][]{
+                            {"M12 cross-subject q.", "Ans", "Module 2", "2", "Easy"}
+                    });
+            // subject2 does NOT have "Module 2"
+            r = importService.validate(m12File, subject2Id);
+            check("M12: same file for different subject - module is new there",
+                    r.getNewModules().contains("Module 2"));
+            imported = importService.importValidRows(r);
+            check("M12: module created under subject2", imported == 1
+                    && moduleExists(subject2Id, "Module 2"));
+            check("M12: subject1 still has exactly one Module 2 (no duplicate)",
+                    countModulesNamed(subjectId, "Module 2") == 1);
 
         } catch (Exception ex) {
             failed++;
@@ -304,6 +513,25 @@ public class ExcelImportTest {
         return questionService.searchQuestions(subjectId, null, null, null, null).size();
     }
 
+    private static boolean moduleExists(int subjectId, String name) throws Exception {
+        for (model.Module m : moduleService.getModulesBySubject(subjectId)) {
+            if (m.getModuleName().trim().equalsIgnoreCase(name.trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int countModulesNamed(int subjectId, String name) throws Exception {
+        int n = 0;
+        for (model.Module m : moduleService.getModulesBySubject(subjectId)) {
+            if (m.getModuleName().trim().equalsIgnoreCase(name.trim())) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private static boolean hasError(ExcelImportService.ImportReport r, String text) {
         for (ExcelImportService.RowError e : r.getErrors()) {
             if (e.getMessage().contains(text)) {
@@ -342,12 +570,19 @@ public class ExcelImportTest {
                 } catch (Exception ignored) {
                 }
             }
-            for (int mid : new int[]{m1, m2, subject2ModuleId}) {
-                if (mid > 0) {
-                    try {
-                        moduleService.deleteModule(mid);
-                    } catch (Exception ignored) {
+            // Remove ALL modules of the test subjects (including auto-created ones)
+            for (int sid : new int[]{subjectId, subject2Id}) {
+                if (sid <= 0) {
+                    continue;
+                }
+                try {
+                    for (model.Module m : moduleService.getModulesBySubject(sid)) {
+                        try {
+                            moduleService.deleteModule(m.getModuleId());
+                        } catch (Exception ignored) {
+                        }
                     }
+                } catch (Exception ignored) {
                 }
             }
             for (int sid : new int[]{subjectId, subject2Id}) {

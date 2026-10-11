@@ -310,6 +310,37 @@ Temporary harnesses from that session (`ReproBlueprintFlow`,
      across a real restart, and end-to-end Excel import / PDF export
      click-throughs (covered by the 19-suite regression instead).
 
+6. **DONE (2026-10-11) — Auto-create missing modules on Excel import**
+   (targeted enhancement; no schema/UI redesign):
+
+   - `ExcelImportService.validate()` now discovers distinct module
+     names in the file, classifies them as existing (reused) or new
+     (to be created), and tracks per-module valid-question counts.
+     Blank modules and names >100 chars remain row errors. Unknown
+     module names are NO LONGER row errors — they become new modules.
+   - `ImportReport` extended with `getDistinctModules()`,
+     `getExistingModules()`, `getNewModules()`,
+     `getModuleQuestionCounts()`, `getInvalidModuleValues()`,
+     `getModulesCreated()`, `getModulesReusedCount()`.
+     `summaryText()` now includes a module section with names + counts.
+   - `importValidRows()` creates new modules via `ModuleService.addModule`
+     (validation + duplicate safety), resolves moduleId on questions,
+     inserts (existing partial-import policy preserved), then deletes
+     any newly created module that ended up with zero imported questions
+     (orphan cleanup). Concurrent-create race handled by lookup fallback.
+   - `ImportPanel` preview shows module discovery summary
+     ("Modules: N found (E existing, N new: names...)").
+     Completion dialog shows modules created/reused counts.
+   - Validation writes NOTHING to the DB; only `importValidRows` does.
+   - ExcelImportTest extended with 12 module-creation scenarios
+     (M1-M12): all-existing, all-new, mixed, repeated names,
+     cross-subject scoping, whitespace, blank/long cells, cancel,
+     orphan cleanup, partial import, re-import, subject switch.
+     Existing T2-6/T9/T10 assertions updated (nonexistent-module
+     rows are now valid with auto-created modules).
+   - Verified: build exit 0, ExcelImportTest **74/0**, full regression
+     **1056 passed / 0 failed across 19 suites**.
+
 ## 8. Housekeeping notes
 
 - Stray untracked files at repo root, all safe to delete if the user
@@ -330,6 +361,13 @@ Temporary harnesses from that session (`ReproBlueprintFlow`,
 
 ## 9. Changelog
 
+- 2026-10-11 — Excel import auto-creates missing modules: `validate()`
+  discovers/classifies module names (no DB writes), `ImportReport` gains
+  module discovery getters + summary section, `importValidRows` creates
+  new modules via ModuleService with orphan cleanup and concurrent-create
+  safety, ImportPanel preview/result show module counts, 12 new test
+  scenarios (M1-M12). Verified: build exit 0, ExcelImportTest 74/0,
+  **1056/0 REGRESSION_GREEN (19 suites)**. Uncommitted on `main`.
 - 2026-10-11 — Light Mode colour correction (Dark Mode frozen):
   root-caused stale FlatLaf delegate colours (UIManager updates but
   component fields don't), added `Ui.rethemeOne` UIManager fallback for

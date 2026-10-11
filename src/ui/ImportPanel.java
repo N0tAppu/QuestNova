@@ -342,10 +342,30 @@ public class ImportPanel extends JPanel {
         }
         int rows = report.getTotalRows();
         int errors = report.getInvalidCount();
+        int valid = report.getValidCount();
+        int distinct = report.getDistinctModules().size();
+        int existing = report.getExistingModules().size();
+        int newMods = report.getNewModules().size();
         if (errors == 0) {
-            setCheckSummary("Check passed: " + rows + " rows, 0 errors.", rows);
+            StringBuilder sb = new StringBuilder();
+            sb.append("Check passed: ").append(rows).append(" rows, 0 errors.");
+            sb.append("  Modules: ").append(distinct).append(" found")
+              .append(" (").append(existing).append(" existing, ")
+              .append(newMods).append(" new");
+            if (newMods > 0) {
+                sb.append(": ").append(String.join(", ", report.getNewModules()));
+            }
+            sb.append(")");
+            setCheckSummary(sb.toString(), valid);
         } else {
-            setCheckSummary("Check failed: " + errors + " errors.", 0);
+            StringBuilder sb = new StringBuilder();
+            sb.append("Check failed: ").append(errors).append(" errors.");
+            if (distinct > 0) {
+                sb.append("  Modules: ").append(distinct).append(" found")
+                  .append(" (").append(existing).append(" existing, ")
+                  .append(newMods).append(" new)");
+            }
+            setCheckSummary(sb.toString(), 0);
         }
     }
 
@@ -455,8 +475,13 @@ public class ImportPanel extends JPanel {
         StringBuilder sb = new StringBuilder();
         sb.append("Import complete.\n\n");
         sb.append("Imported: ").append(imported).append('\n');
+        sb.append("Modules created: ").append(report.getModulesCreated().size()).append('\n');
+        sb.append("Modules reused: ").append(report.getModulesReusedCount()).append('\n');
+        if (!report.getModulesCreated().isEmpty()) {
+            sb.append("  Created: ").append(String.join(", ", report.getModulesCreated())).append('\n');
+        }
         if (imported < valid) {
-            sb.append("(some rows could not be inserted)\n");
+            sb.append("\n(some rows could not be inserted)\n");
             if (!report.getInsertFailures().isEmpty()) {
                 sb.append('\n');
                 for (String failure : report.getInsertFailures()) {
@@ -464,7 +489,7 @@ public class ImportPanel extends JPanel {
                 }
             }
         }
-        JTextArea area = new JTextArea(sb.toString(), 8, 44);
+        JTextArea area = new JTextArea(sb.toString(), 10, 50);
         area.setEditable(false);
         JOptionPane.showMessageDialog(this, new JScrollPane(area), "Import Result",
                 JOptionPane.INFORMATION_MESSAGE);
